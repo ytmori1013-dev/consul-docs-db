@@ -1,0 +1,63 @@
+name: Buzz Tracker Crawl
+
+on:
+  # 1時間毎に自動実行
+  schedule:
+    - cron: "0 * * * *"
+  # 手動実行も可能
+  workflow_dispatch:
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Python 3.11 セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 依存ライブラリをインストール
+        run: pip install -r requirements.txt
+
+      - name: ツイートをクロール
+        env:
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: ${{ secrets.GIST_ID }}
+        run: |
+          python -c "
+          import json, sys, logging
+          logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+
+          # クロール
+          from scripts.crawler import fetch_buzz_tweets
+          tweets = fetch_buzz_tweets()
+          print(f'クロール完了: {len(tweets)} 件', flush=True)
+
+          # author_historyをGistから事前取得
+          from scripts.gist_sync import load_author_history
+          author_history = load_author_history()
+
+          # フィルタ
+          from scripts.filter import apply_filters
+          filtered_tweets, updated_history = apply_filters(tweets, author_history)
+          print(f'フィルタ完了: {len(filtered_tweets)} 件', flush=True)
+
+          # カテゴリ分類
+          from scripts.classifier import classify_tweets_batch
+          classified_tweets = classify_tweets_batch(filtered_tweets)
+          print(f'分類完了: {len(classified_tweets)} 件', flush=True)
+
+          # Gistに同期
+          from scripts.gist_sync import sync
+          success = sync(classified_tweets, updated_history)
+          if not success:
+              print('Gist同期に失敗しました（エラーログを確認してください）', flush=True)
+              sys.exit(1)
+          print('Gist同期完了', flush=True)
+          "
