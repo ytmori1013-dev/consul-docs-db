@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Buzz Tracker</title>
+  <title>はてなバズ Tracker</title>
   <style>
     /* ===== CSS変数・リセット ===== */
     :root {
@@ -236,6 +236,16 @@
     .cat-life   { background: rgba(130,201,108,.18); color: var(--cat-life); }
     .cat-other  { background: rgba(139,144,167,.18); color: var(--cat-other); }
 
+    /* ===== カードリンク ===== */
+    .card-link {
+      color: var(--text);
+      text-decoration: none;
+    }
+    .card-link:hover {
+      color: var(--accent-hover);
+      text-decoration: underline;
+    }
+
     /* ===== 空状態 ===== */
     .empty {
       text-align: center;
@@ -310,7 +320,7 @@
 
 <header class="header">
   <div class="header-inner">
-    <a href="#" class="logo">⚡ Buzz<span>Tracker</span></a>
+    <a href="#" class="logo">⚡ はてな<span>バズ</span></a>
     <div class="header-meta" id="last-updated">読み込み中…</div>
   </div>
 </header>
@@ -411,35 +421,32 @@ function avatarChar(author) {
   return (author || "?").charAt(0).toUpperCase();
 }
 
-// ===== ツイートカードHTML生成 =====
+// ===== カードHTML生成 =====
 function buildCard(tweet) {
   const bmd = isBookmarked(tweet.tweet_id);
   const catClass = CATEGORY_CLASS[tweet.category] || "cat-other";
-  const engText = tweet.engagement_rate != null
-    ? `<span class="stat"><span class="stat-icon">📊</span><span class="stat-num">${(tweet.engagement_rate * 100).toFixed(1)}%</span></span>`
-    : "";
+  const titleEl = tweet.url
+    ? `<a href="${escHtml(tweet.url)}" target="_blank" rel="noopener" class="card-link">${escHtml(tweet.text)}</a>`
+    : escHtml(tweet.text);
 
   return `
     <div class="card" data-id="${tweet.tweet_id}">
       <div class="card-header">
         <div class="avatar">${avatarChar(tweet.author)}</div>
         <div class="author-info">
-          <div class="author-name">${escHtml(tweet.author || tweet.author_id)}</div>
-          <div class="author-id">@${escHtml(tweet.author_id)}
-            ${tweet.followers_count ? `<span style="margin-left:8px">フォロワー ${fmtNum(tweet.followers_count)}</span>` : ""}
-          </div>
+          <div class="author-name">${escHtml(tweet.author)}</div>
+          <div class="author-id">${escHtml(tweet.timestamp ? tweet.timestamp.slice(0, 10) : "")}</div>
         </div>
         <button class="bookmark-btn ${bmd ? "bookmarked" : ""}"
                 data-id="${tweet.tweet_id}"
                 title="${bmd ? "ブックマーク解除" : "ブックマーク"}">
-          ${bmd ? "🔖" : "🔖"}
+          🔖
         </button>
       </div>
-      <div class="card-text">${escHtml(tweet.text)}</div>
+      <div class="card-text">${titleEl}</div>
       <div class="card-footer">
-        <span class="stat"><span class="stat-icon">❤️</span><span class="stat-num">${fmtNum(tweet.likes)}</span></span>
-        <span class="stat"><span class="stat-icon">🔁</span><span class="stat-num">${fmtNum(tweet.retweets)}</span></span>
-        ${engText}
+        <span class="stat"><span class="stat-icon">🔖</span><span class="stat-num">${fmtNum(tweet.likes)}</span><span style="font-size:11px;margin-left:2px;color:var(--text-sub)">users</span></span>
+        ${tweet.retweets ? `<span class="stat"><span class="stat-icon">💬</span><span class="stat-num">${fmtNum(tweet.retweets)}</span></span>` : ""}
         <span class="category-badge ${catClass}">${tweet.category || "その他"}</span>
       </div>
     </div>`;

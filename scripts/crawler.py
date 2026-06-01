@@ -1,28 +1,21 @@
 """
-Nitterからバズツイートをスクレイピングするモジュール
+はてなブックマークのホットエントリーをスクレイピングするモジュール
+
+認証不要・無料のはてなブックマーク APIを使用。
+カテゴリ別ホットエントリーを取得し、バズ閾値でフィルタする。
 """
-import re
 import time
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 import requests
-from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-# フォールバック付きNitterインスタンスリスト
-NITTER_INSTANCES = [
-    "https://nitter.net",
-    "https://nitter.it",
-    "https://nitter.nl",
-]
-
-# バズ閾値
-MIN_LIKES = 10000
-MIN_RETWEETS = 1000
-MAX_TWEETS = 100
+# バズ閾値（ブックマーク数）
+MIN_BOOKMARKS = 100
+MAX_ENTRIES = 100
 
 HEADERS = {
     "User-Agent": (
@@ -32,167 +25,145 @@ HEADERS = {
     )
 }
 
+# はてなブックマーク カテゴリリスト
+# ref: https://b.hatena.ne.jp/hotentry/{category}
+HATENA_CATEGORIES = [
+    "general",       # 総合
+    "social",        # 社会・政治・国際
+    "economics",     # 経済・企業
+    "life",          # 暮らし・健康
+    "knowledge",     # 学び・知識
+    "it",            # テクノロジー
+    "entertainment", # エンタメ・カルチャー
+    "game",          # ゲーム・アニメ
+    "fun",           # おもしろ
+]
 
-def _parse_count(text: str) -> int:
-    """'10.5K' や '1,234' などの数値文字列を整数に変換する"""
-    text = text.strip().replace(",", "")
-    if not text:
-        return 0
+HATENA_API_BASE = "https://b.hatena.ne.jp"
+
+
+def _fetch_hotentry(category: str) -> list[dict]:
+    """指定カテゴリのホットエントリーを取得する"""
+    url = f"{HATENA_API_BASE}/hotentry/{category}.json"
     try:
-        if text.endswith("K"):
-            return int(float(text[:-1]) * 1000)
-        if text.endswith("M"):
-            return int(float(text[:-1]) * 1_000_000)
-        return int(text)
-    except ValueError:
-        return 0
-
-
-def _fetch_page(instance: str, path: str, params: dict) -> Optional[BeautifulSoup]:
-    """指定インスタンスのページを取得してBeautifulSoupオブジェクトを返す"""
-    url = f"{instance}{path}"
-    try:
-        resp = requests.get(url, headers=HEADERS, params=params, timeout=15)
+        resp = requests.get(url, headers=HEADERS, timeout=15)
         resp.raise_for_status()
-        return BeautifulSoup(resp.text, "html.parser")
+        data = resp.json()
+        logger.info(f"カテゴリ '{category}': {len(data)} 件取得")
+        return data
     except Exception as e:
-        logger.warning(f"インスタンス {instance} への接続失敗: {e}")
-        return None
-
-
-def _parse_tweet(item) -> Optional[dict]:
-    """BeautifulSoupのツイート要素から情報を抽出する"""
-    try:
-        # ツイートID
-        tweet_link = item.select_one(".tweet-link")
-        if not tweet_link:
-            return None
-        href = tweet_link.get("href", "")
-        tweet_id_match = re.search(r"/status/(\d+)", href)
-        if not tweet_id_match:
-            return None
-        tweet_id = tweet_id_match.group(1)
-
-        # 本文
-        content_el = item.select_one(".tweet-content")
-        text = content_el.get_text(separator=" ").strip() if content_el else ""
-
-        # 著者情報
-        username_el = item.select_one(".username")
-        fullname_el = item.select_one(".fullname")
-        author = fullname_el.get_text(strip=True) if fullname_el else ""
-        author_id = username_el.get_text(strip=True).lstrip("@") if username_el else ""
-        if not author_id:
-            return None
-
-        # フォロワー数（プロフィールリンクから取得できない場合は0）
-        followers_count = 0
-        followers_el = item.select_one(".followers .profile-stat-num")
-        if followers_el:
-            followers_count = _parse_count(followers_el.get_text(strip=True))
-
-        # いいね数・RT数
-        likes = 0
-        retweets = 0
-        stats = item.select(".tweet-stat")
-        for stat in stats:
-            icon = stat.select_one(".icon-heart, .icon-retweet")
-            if not icon:
-                continue
-            num_el = stat.select_one(".tweet-stat-count")
-            if not num_el:
-                continue
-            count = _parse_count(num_el.get_text(strip=True))
-            if "icon-heart" in icon.get("class", []):
-                likes = count
-            elif "icon-retweet" in icon.get("class", []):
-                retweets = count
-
-        # タイムスタンプ
-        time_el = item.select_one(".tweet-date a")
-        timestamp = ""
-        if time_el:
-            timestamp = time_el.get("title", "") or time_el.get_text(strip=True)
-
-        return {
-            "tweet_id": tweet_id,
-            "text": text,
-            "author": author,
-            "author_id": author_id,
-            "followers_count": followers_count,
-            "likes": likes,
-            "retweets": retweets,
-            "timestamp": timestamp,
-        }
-    except Exception as e:
-        logger.warning(f"ツイート解析エラー: {e}")
-        return None
-
-
-def _fetch_tweets_from_instance(instance: str, since_id: Optional[str] = None) -> list[dict]:
-    """1つのNitterインスタンスからツイートを取得する"""
-    params = {
-        "q": "filter:safe lang:ja",
-        "f": "tweets",
-        "src": "typed_query",
-    }
-    if since_id:
-        params["since_id"] = since_id
-
-    soup = _fetch_page(instance, "/search", params)
-    if soup is None:
+        logger.warning(f"カテゴリ '{category}' の取得失敗: {e}")
         return []
 
-    tweets = []
-    items = soup.select(".timeline-item")
-    for item in items:
-        tweet = _parse_tweet(item)
-        if tweet is None:
-            continue
-        # バズ閾値フィルタ
-        if tweet["likes"] >= MIN_LIKES and tweet["retweets"] >= MIN_RETWEETS:
-            tweets.append(tweet)
-        if len(tweets) >= MAX_TWEETS:
-            break
 
-    logger.info(f"{instance} から {len(tweets)} 件のバズツイートを取得")
-    return tweets
+def _parse_entry(entry: dict, category: str) -> Optional[dict]:
+    """
+    はてなブックマークのエントリーをパイプライン共通フォーマットに変換する
+
+    tweet_id     → エントリーURLのハッシュ（一意ID）
+    text         → タイトル + 説明文
+    author       → エントリードメイン
+    author_id    → エントリーURLをIDとして使用
+    followers_count → ブックマーク数（likes との比率計算用に同値を設定）
+    likes        → ブックマーク数
+    retweets     → コメント付きブックマーク数（comment_count）
+    timestamp    → 記事の日付
+    """
+    try:
+        url = entry.get("url") or entry.get("link", "")
+        if not url:
+            return None
+
+        # URLからドメインを取得
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        domain = parsed.netloc or "unknown"
+
+        title = entry.get("title", "")
+        description = entry.get("description", "") or entry.get("summary", "")
+        text = title
+        if description and description != title:
+            text = f"{title} — {description}"
+
+        bookmark_count = int(entry.get("bookmarks_count") or entry.get("count", 0))
+        comment_count  = int(entry.get("bookmarks_of_comment") or 0)
+
+        # 日付
+        timestamp = (
+            entry.get("created_at")
+            or entry.get("updated_at")
+            or entry.get("date", "")
+            or ""
+        )
+
+        # URLのSHA1ハッシュ先頭16文字をIDとして使用
+        import hashlib
+        entry_id = hashlib.sha1(url.encode()).hexdigest()[:16]
+
+        return {
+            "tweet_id": entry_id,
+            "text": text,
+            "author": domain,
+            # エントリーごとに一意のIDにしてフィルタLayer1・2をスキップ
+            "author_id": entry_id,
+            # followers_count=0 でLayer2・3をスキップ（はてなには該当概念なし）
+            "followers_count": 0,
+            "likes": bookmark_count,
+            "retweets": comment_count,
+            "timestamp": timestamp,
+            "url": url,
+            "source_category": category,
+        }
+    except Exception as e:
+        logger.warning(f"エントリー解析エラー: {e}")
+        return None
 
 
 def fetch_buzz_tweets(since_id: Optional[str] = None) -> list[dict]:
     """
-    複数のNitterインスタンスをフォールバックしながらバズツイートを取得する
+    はてなブックマークのホットエントリーをカテゴリ横断で取得する
+
+    since_id は後方互換のために引数として受け取るが、
+    はてなブックマーク APIでは使用しない。
 
     Returns:
-        tweet_idで重複排除済みのツイートリスト
+        IDで重複排除済みのエントリーリスト（バズ閾値以上のみ）
     """
-    all_tweets: dict[str, dict] = {}
+    all_entries: dict[str, dict] = {}
 
-    for instance in NITTER_INSTANCES:
+    for category in HATENA_CATEGORIES:
         try:
-            tweets = _fetch_tweets_from_instance(instance, since_id)
-            for tweet in tweets:
-                tid = tweet["tweet_id"]
-                if tid not in all_tweets:
-                    all_tweets[tid] = tweet
-            # 1つのインスタンスから十分に取得できたら終了
-            if len(all_tweets) >= MAX_TWEETS:
+            raw_entries = _fetch_hotentry(category)
+            for entry in raw_entries:
+                parsed = _parse_entry(entry, category)
+                if parsed is None:
+                    continue
+                if parsed["likes"] < MIN_BOOKMARKS:
+                    continue
+                eid = parsed["tweet_id"]
+                if eid not in all_entries:
+                    all_entries[eid] = parsed
+
+            if len(all_entries) >= MAX_ENTRIES:
                 break
-            time.sleep(2)  # レート制限への配慮
+            time.sleep(0.5)  # レート制限への配慮
         except Exception as e:
-            logger.error(f"インスタンス {instance} の処理中にエラー: {e}")
+            logger.error(f"カテゴリ '{category}' の処理中にエラー: {e}")
             continue
 
-    result = list(all_tweets.values())
-    logger.info(f"合計 {len(result)} 件のバズツイートを取得（重複排除後）")
+    result = sorted(
+        all_entries.values(),
+        key=lambda e: e["likes"],
+        reverse=True,
+    )[:MAX_ENTRIES]
+
+    logger.info(f"合計 {len(result)} 件のバズエントリーを取得（重複排除後）")
     return result
 
 
 if __name__ == "__main__":
-    import json
-    import sys
-
-    tweets = fetch_buzz_tweets()
-    print(json.dumps(tweets, ensure_ascii=False, indent=2))
-    logger.info(f"取得完了: {len(tweets)} 件")
-    sys.exit(0 if tweets or True else 1)
+    import json, sys
+    entries = fetch_buzz_tweets()
+    print(json.dumps(entries, ensure_ascii=False, indent=2))
+    logger.info(f"取得完了: {len(entries)} 件")
+    sys.exit(0)
