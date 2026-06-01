@@ -6,7 +6,7 @@ on:
 jobs:
   diag:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -16,162 +16,60 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - run: pip install requests beautifulsoup4
+      - run: pip install requests
 
-      - name: Run diagnostics and write to Gist
+      - name: Inspect NDL XML structure
         env:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
           GIST_ID: ${{ secrets.GIST_ID }}
         run: |
           python3 << 'PYEOF'
-          import requests, json, os, re, time
+          import requests, json, os
           import xml.etree.ElementTree as ET
-          from urllib.parse import urljoin
-          from bs4 import BeautifulSoup
 
           GIST_TOKEN = os.environ.get("GIST_TOKEN", "")
           GIST_ID = os.environ.get("GIST_ID", "")
-          HEADERS = {
-              "User-Agent": (
-                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/120.0.0.0 Safari/537.36"
-              )
-          }
+          HEADERS = {"User-Agent": "Mozilla/5.0"}
 
           log = []
-
           def L(msg):
               print(msg, flush=True)
               log.append(str(msg))
 
           def save_diag():
               if not GIST_ID or not GIST_TOKEN:
-                  print("GIST not configured, printing log only")
                   return
-              headers = {
-                  "Authorization": f"token {GIST_TOKEN}",
-                  "Accept": "application/vnd.github.v3+json",
-              }
-              payload = {
-                  "files": {
-                      "diag_result.txt": {
-                          "content": "\n".join(log)
-                      }
-                  }
-              }
-              r = requests.patch(f"https://api.github.com/gists/{GIST_ID}", headers=headers, json=payload, timeout=30)
-              print(f"Gist save status: {r.status_code}")
+              h = {"Authorization": f"token {GIST_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+              p = {"files": {"diag_result.txt": {"content": "\n".join(log)}}}
+              r = requests.patch(f"https://api.github.com/gists/{GIST_ID}", headers=h, json=p, timeout=30)
+              print(f"Gist save: {r.status_code}")
 
-          L("=== CRAWLER DIAGNOSTICS ===")
+          L("=== NDL XML structure inspection ===")
 
-          # Test 1: METI Sitemap XML
-          L("\n--- Test 1: METI sitemap.xml ---")
-          for url in ["https://www.meti.go.jp/sitemap.xml", "https://www.meti.go.jp/sitemap_index.xml"]:
-              try:
-                  r = requests.get(url, headers=HEADERS, timeout=20)
-                  L(f"  {url} -> HTTP {r.status_code}")
-                  if r.status_code == 200:
-                      content = r.content[:500]
-                      L(f"  Content preview: {content}")
-                      try:
-                          root = ET.fromstring(r.content)
-                          ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-                          locs = root.findall(".//sm:url/sm:loc", ns)
-                          sitemaps = root.findall(".//sm:sitemap/sm:loc", ns)
-                          pdf_count = sum(1 for l in locs if re.search(r'\\.(pdf|ppt|pptx)$', l.text or '', re.I))
-                          L(f"  URLs: {len(locs)}, Sub-sitemaps: {len(sitemaps)}, PDFs: {pdf_count}")
-                          if sitemaps:
-                              L(f"  First 3 sitemaps: {[s.text for s in sitemaps[:3]]}")
-                      except Exception as e:
-                          L(f"  XML parse error: {e}")
-              except Exception as e:
-                  L(f"  {url} -> ERROR: {e}")
+          ndl_url = "https://ndlsearch.ndl.go.jp/api/sru"
+          params = {
+              "operation": "searchRetrieve",
+              "query": 'creator="経済産業省" AND title="委託調査"',
+              "maximumRecords": 3,
+              "recordSchema": "dcndl",
+              "startRecord": 1,
+          }
 
-          # Test 2: METI report pages
-          L("\n--- Test 2: METI report pages ---")
-          pages = [
-              "https://www.meti.go.jp/report/whitepaper/index.html",
-              "https://www.meti.go.jp/policy/economy/keiei_innovation/sangyokinyu/houkokusyo.html",
-              "https://www.meti.go.jp/topic/data/e90622aj.html",
-          ]
-          for url in pages:
-              try:
-                  r = requests.get(url, headers=HEADERS, timeout=20)
-                  L(f"  {url} -> HTTP {r.status_code}")
-                  if r.status_code == 200:
-                      soup = BeautifulSoup(r.text, "html.parser")
-                      links = soup.find_all("a", href=True)
-                      pdf_links = [a["href"] for a in links if re.search(r'\\.(pdf|ppt|pptx)$', a["href"], re.I)]
-                      L(f"  Total links: {len(links)}, PDF/PPT links: {len(pdf_links)}")
-                      if pdf_links:
-                          L(f"  First 5: {pdf_links[:5]}")
-                      else:
-                          L(f"  Sample links: {[a['href'] for a in links[:10]]}")
-              except Exception as e:
-                  L(f"  {url} -> ERROR: {e}")
-
-          # Test 3: NDL SRU API
-          L("\n--- Test 3: NDL SRU API ---")
           try:
-              ndl_url = "https://ndlsearch.ndl.go.jp/api/sru"
-              params = {
-                  "operation": "searchRetrieve",
-                  "query": 'creator="経済産業省" AND title="委託調査"',
-                  "maximumRecords": 5,
-                  "recordSchema": "dcndl",
-                  "startRecord": 1,
-              }
               r = requests.get(ndl_url, params=params, headers=HEADERS, timeout=30)
-              L(f"  NDL API -> HTTP {r.status_code}")
-              L(f"  Response size: {len(r.content)} bytes")
-              L(f"  Content-Type: {r.headers.get('Content-Type', 'unknown')}")
-              if r.status_code == 200:
-                  preview = r.text[:1000]
-                  L(f"  Response preview:\n{preview}")
-                  try:
-                      root = ET.fromstring(r.content)
-                      ns = {"srw": "http://www.loc.gov/zing/srw/"}
-                      records = root.findall(".//srw:record", ns)
-                      L(f"  Records found: {len(records)}")
-                      num_results_el = root.find(".//{http://www.loc.gov/zing/srw/}numberOfRecords")
-                      if num_results_el is not None:
-                          L(f"  Total results: {num_results_el.text}")
-                  except Exception as e:
-                      L(f"  XML parse error: {e}")
-              else:
-                  L(f"  Error body: {r.text[:500]}")
-          except Exception as e:
-              L(f"  NDL API -> ERROR: {e}")
+              L(f"HTTP {r.status_code}, size={len(r.content)}")
 
-          # Test 4: Try simpler NDL query
-          L("\n--- Test 4: NDL API simpler query ---")
-          try:
-              params2 = {
-                  "operation": "searchRetrieve",
-                  "query": "経済産業省 委託調査",
-                  "maximumRecords": 5,
-                  "recordSchema": "dcndl",
-              }
-              r2 = requests.get(ndl_url, params=params2, headers=HEADERS, timeout=30)
-              L(f"  Simple query -> HTTP {r2.status_code}, size: {len(r2.content)}")
-              if r2.status_code == 200:
-                  L(f"  Preview: {r2.text[:500]}")
-          except Exception as e:
-              L(f"  Simple query ERROR: {e}")
+              root = ET.fromstring(r.content)
+              ns = {"srw": "http://www.loc.gov/zing/srw/"}
+              records = root.findall(".//srw:record", ns)
+              L(f"Records: {len(records)}")
 
-          # Test 5: Check full crawler output
-          L("\n--- Test 5: Full crawler run ---")
-          try:
-              import sys
-              sys.path.insert(0, ".")
-              from scripts.crawler import crawl
-              results = crawl()
-              L(f"  Crawler returned: {len(results)} entries")
-              if results:
-                  L(f"  First entry: {json.dumps(results[0], ensure_ascii=False)}")
+              for i, rec in enumerate(records):
+                  L(f"\n--- Record {i+1} raw XML ---")
+                  L(ET.tostring(rec, encoding='unicode')[:3000])
+
           except Exception as e:
-              L(f"  Crawler ERROR: {e}")
+              L(f"ERROR: {e}")
               import traceback
               L(traceback.format_exc())
 
