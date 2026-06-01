@@ -8,38 +8,54 @@ jobs:
   diag:
     runs-on: ubuntu-latest
     steps:
-      - name: METI疎通テスト（結果をGistに書き込む）
+      - name: METIリンク構造調査
         run: |
-          pip install requests -q
+          pip install requests beautifulsoup4 -q
           python3 - <<'PYEOF'
-          import requests, json, os
+          import requests, json, os, re
+          from bs4 import BeautifulSoup
 
           HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
           URL = "https://www.meti.go.jp/topic/data/e90622aj.html"
           lines = []
           try:
               r = requests.get(URL, headers=HEADERS, timeout=30)
-              lines.append(f"STATUS: {r.status_code}")
-              lines.append(f"ENCODING: {r.apparent_encoding}")
-              import re
-              links = re.findall(r'href="([^"]*\.(ppt|pptx|pdf))"', r.text, re.IGNORECASE)
-              lines.append(f"PPT/PDF links found: {len(links)}")
-              for l in links[:10]:
-                  lines.append(f"  LINK: {l[0]}")
-              lines.append(f"BODY_SAMPLE: {r.text[:800]!r}")
+              r.encoding = r.apparent_encoding or 'utf-8'
+              lines.append(f"STATUS: {r.status_code} / encoding: {r.encoding}")
+
+              soup = BeautifulSoup(r.text, 'html.parser')
+
+              # 全aタグのhrefを収集
+              all_hrefs = [a.get('href','') for a in soup.find_all('a', href=True)]
+              lines.append(f"total <a href> count: {len(all_hrefs)}")
+
+              # ppt/pdf含むもの
+              file_links = [h for h in all_hrefs if re.search(r'\.(ppt|pptx|pdf)', h, re.I)]
+              lines.append(f"ppt/pdf href count: {len(file_links)}")
+              for l in file_links[:20]:
+                  lines.append(f"  FILE: {l}")
+
+              # href全件（先頭30件）
+              lines.append("\n--- all hrefs (first 30) ---")
+              for h in all_hrefs[:30]:
+                  lines.append(f"  {h}")
+
+              # ページ本文テキスト（先頭1000文字）
+              lines.append("\n--- body text (first 1000 chars) ---")
+              lines.append(soup.get_text()[:1000])
+
           except Exception as e:
               lines.append(f"ERROR: {e}")
 
           result = "\n".join(lines)
           print(result)
 
-          # Gistに書き込む
           gist_token = os.environ.get("GIST_TOKEN", "")
           gist_id    = os.environ.get("GIST_ID", "")
           if gist_token and gist_id:
               resp = requests.patch(
                   f"https://api.github.com/gists/{gist_id}",
-                  headers={"Authorization": f"token {gist_token}", "Accept": "application/vnd.github.v3+json"},
+                  headers={"Authorization": f"token {gist_token}"},
                   json={"files": {"diag_result.txt": {"content": result}}}
               )
               print("Gist write:", resp.status_code)
