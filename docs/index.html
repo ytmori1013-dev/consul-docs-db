@@ -3,30 +3,32 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>はてなバズ Tracker</title>
+  <title>ConsulSlides — 官公庁委託報告書 学習DB</title>
   <style>
-    /* ===== CSS変数・リセット ===== */
+    /* ===== CSS変数 ===== */
     :root {
-      --bg: #0f1117;
-      --surface: #1a1d27;
-      --surface2: #242736;
-      --border: #2e3147;
-      --text: #e8eaf0;
-      --text-sub: #8b90a7;
-      --accent: #6c8fff;
-      --accent-hover: #8aa4ff;
-      --bookmark-active: #ffd54f;
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #273549;
+      --border: #334155;
+      --text: #e2e8f0;
+      --text-sub: #94a3b8;
+      --text-muted: #64748b;
 
-      /* カテゴリカラー */
-      --cat-ai:     #6c8fff;
-      --cat-biz:    #4caf82;
-      --cat-poli:   #e06c6c;
-      --cat-ent:    #c97fd4;
-      --cat-sports: #ff9f5a;
-      --cat-sci:    #4fc3c3;
-      --cat-life:   #82c96c;
-      --cat-gourmet:#f5a623;
-      --cat-other:  #8b90a7;
+      --blue: #3b82f6;
+      --blue-dim: #1e3a8a;
+      --blue-light: #93c5fd;
+      --green: #10b981;
+      --green-dim: #064e3b;
+      --green-light: #6ee7b7;
+      --orange: #f97316;
+      --orange-dim: #431407;
+      --orange-light: #fdba74;
+      --red: #ef4444;
+      --purple: #8b5cf6;
+      --purple-dim: #4c1d95;
+      --yellow: #fbbf24;
+      --gray: #64748b;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,7 +37,7 @@
       background: var(--bg);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
-      font-size: 15px;
+      font-size: 14px;
       line-height: 1.6;
       min-height: 100vh;
     }
@@ -44,586 +46,1193 @@
     .header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 0 20px;
+      padding: 10px 20px;
       position: sticky;
       top: 0;
-      z-index: 100;
-    }
-    .header-inner {
-      max-width: 900px;
-      margin: 0 auto;
+      z-index: 200;
       display: flex;
       align-items: center;
-      gap: 16px;
-      height: 56px;
+      gap: 14px;
+      flex-wrap: wrap;
     }
+
     .logo {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--accent);
-      text-decoration: none;
-      letter-spacing: -0.5px;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--blue-light);
       white-space: nowrap;
+      flex-shrink: 0;
+      letter-spacing: -0.02em;
     }
-    .logo span { color: var(--text); }
-    .header-meta {
-      margin-left: auto;
-      font-size: 12px;
-      color: var(--text-sub);
-      white-space: nowrap;
+    .logo-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 400;
+      letter-spacing: 0;
     }
 
-    /* ===== ナビゲーションタブ ===== */
-    .nav-wrapper {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
+    .search-wrap {
+      flex: 1;
+      min-width: 160px;
+      max-width: 440px;
     }
-    .nav-wrapper::-webkit-scrollbar { display: none; }
-    .nav {
-      max-width: 900px;
-      margin: 0 auto;
+    .search-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 13px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: var(--blue); }
+    .search-input::placeholder { color: var(--text-muted); }
+
+    .header-right {
       display: flex;
-      padding: 0 20px;
-      gap: 4px;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      margin-left: auto;
     }
-    .nav-tab {
-      padding: 10px 14px;
-      border: none;
-      background: none;
-      color: var(--text-sub);
-      cursor: pointer;
+
+    .sort-select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 6px 10px;
       font-size: 13px;
-      font-weight: 500;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .nav-tabs { display: flex; gap: 4px; }
+    .nav-tab {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-sub);
+      padding: 6px 13px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
       white-space: nowrap;
-      border-bottom: 2px solid transparent;
-      transition: color 0.15s, border-color 0.15s;
     }
-    .nav-tab:hover { color: var(--text); }
-    .nav-tab.active {
-      color: var(--accent);
-      border-bottom-color: var(--accent);
+    .nav-tab:hover { background: var(--surface2); color: var(--text); }
+    .nav-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+    .mobile-filter-btn {
+      display: none;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-sub);
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
     }
 
-    /* ===== メインレイアウト ===== */
-    .main {
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 20px;
+    /* ===== レイアウト ===== */
+    .layout {
+      display: flex;
+      min-height: calc(100vh - 57px);
     }
 
-    /* ===== ローディング・エラー ===== */
-    .loading, .error-msg {
-      text-align: center;
-      padding: 60px 20px;
+    /* ===== サイドバー ===== */
+    .sidebar {
+      width: 256px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 14px 12px;
+      overflow-y: auto;
+      height: calc(100vh - 57px);
+      position: sticky;
+      top: 57px;
+    }
+
+    .sidebar-section { margin-bottom: 18px; }
+    .sidebar-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    /* 統計 */
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-val { font-weight: 700; color: var(--blue-light); }
+
+    .firm-bar { margin-bottom: 7px; }
+    .firm-bar-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      margin-bottom: 2px;
       color: var(--text-sub);
     }
-    .error-msg { color: #e06c6c; }
-    .spinner {
-      display: inline-block;
-      width: 32px;
-      height: 32px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin-bottom: 12px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .firm-bar-head span:last-child { color: var(--purple); font-weight: 600; }
+    .firm-bar-track { height: 3px; background: var(--border); border-radius: 2px; }
+    .firm-bar-fill { height: 100%; background: var(--purple); border-radius: 2px; transition: width 0.4s; }
 
-    /* ===== ツイートカードグリッド ===== */
-    .cards-grid {
+    /* フィルター */
+    .filter-group { margin-bottom: 12px; }
+    .filter-group-label {
+      font-size: 11px;
+      color: var(--text-sub);
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+    .filter-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+    .chip {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 11px;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.12s;
+      user-select: none;
+    }
+    .chip:hover { border-color: var(--text-sub); color: var(--text); }
+    .chip.on-blue  { background: var(--blue-dim);   border-color: var(--blue);   color: var(--blue-light); }
+    .chip.on-green { background: var(--green-dim);  border-color: var(--green);  color: var(--green-light); }
+    .chip.on-orange{ background: var(--orange-dim); border-color: var(--orange); color: var(--orange-light); }
+
+    .filter-select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      padding: 5px 7px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .clear-btn {
+      width: 100%;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text-muted);
+      padding: 5px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: all 0.15s;
+    }
+    .clear-btn:hover { background: var(--surface2); color: var(--text); }
+
+    /* ===== メインコンテンツ ===== */
+    .content { flex: 1; padding: 14px 18px; overflow-x: hidden; }
+
+    .results-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .results-count { font-size: 13px; color: var(--text-sub); }
+    .results-count strong { color: var(--text); }
+
+    /* ===== カードグリッド ===== */
+    .card-grid {
       display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
       gap: 12px;
     }
 
-    /* ===== ツイートカード ===== */
-    .card {
+    /* ===== スライドカード ===== */
+    .slide-card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-      transition: border-color 0.15s;
+      border-radius: 10px;
+      padding: 13px;
+      position: relative;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .card:hover { border-color: #4a4f6a; }
+    .slide-card:hover {
+      border-color: #475569;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
 
-    .card-header {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      margin-bottom: 10px;
+    .new-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: var(--red);
+      color: #fff;
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 5px;
+      border-radius: 3px;
+      letter-spacing: 0.05em;
     }
-    .avatar {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      background: var(--surface2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--accent);
-      flex-shrink: 0;
-    }
-    .author-info { flex: 1; min-width: 0; }
-    .author-name {
+
+    .card-title {
+      font-size: 13px;
       font-weight: 600;
-      font-size: 14px;
-      white-space: nowrap;
+      line-height: 1.5;
+      margin-bottom: 8px;
+      padding-right: 44px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
       overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .author-id {
-      font-size: 12px;
-      color: var(--text-sub);
-    }
-    .bookmark-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 20px;
-      color: var(--text-sub);
-      padding: 2px 4px;
-      border-radius: 6px;
-      transition: color 0.15s, background 0.15s;
-      line-height: 1;
-      flex-shrink: 0;
-    }
-    .bookmark-btn:hover { background: var(--surface2); color: var(--bookmark-active); }
-    .bookmark-btn.bookmarked { color: var(--bookmark-active); }
-
-    .card-text {
-      font-size: 14px;
-      line-height: 1.65;
-      margin-bottom: 12px;
-      word-break: break-word;
       color: var(--text);
     }
+    .card-title a { color: inherit; text-decoration: none; }
+    .card-title a:hover { color: var(--blue-light); text-decoration: underline; }
+
+    .card-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 7px; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+    .b-firm   { background: var(--purple-dim); color: #ddd6fe; border: 1px solid #6d28d9; }
+    .b-year   { background: var(--surface2);   color: var(--text-sub); border: 1px solid var(--border); }
+    .b-struct { background: var(--blue-dim);   color: var(--blue-light); border: 1px solid var(--blue); }
+    .b-design { background: var(--green-dim);  color: var(--green-light); border: 1px solid var(--green); }
+    .b-theme  { background: var(--orange-dim); color: var(--orange-light); border: 1px solid var(--orange); }
+
+    .card-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 9px; }
 
     .card-footer {
       display: flex;
       align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
+      justify-content: space-between;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
     }
-    .stat {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 13px;
-      color: var(--text-sub);
+    .card-meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); }
+
+    .ft-badge {
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
     }
-    .stat-icon { font-size: 14px; }
-    .stat-num { font-weight: 600; color: var(--text); }
-    .category-badge {
-      margin-left: auto;
-      padding: 3px 9px;
-      border-radius: 20px;
-      font-size: 11px;
+    .ft-pdf  { background: #1e3a8a; color: #93c5fd; }
+    .ft-pptx { background: #78350f; color: #fde68a; }
+    .ft-ppt  { background: #7f1d1d; color: #fca5a5; }
+    .ft-other{ background: var(--surface2); color: var(--text-muted); }
+
+    .card-actions { display: flex; align-items: center; gap: 5px; }
+
+    .dl-btn {
+      background: var(--blue);
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      padding: 4px 11px;
+      font-size: 12px;
       font-weight: 600;
-      letter-spacing: 0.3px;
-    }
-
-    /* カテゴリバッジ配色 */
-    .cat-ai     { background: rgba(108,143,255,.18); color: var(--cat-ai); }
-    .cat-biz    { background: rgba(76,175,130,.18);  color: var(--cat-biz); }
-    .cat-poli   { background: rgba(224,108,108,.18); color: var(--cat-poli); }
-    .cat-ent    { background: rgba(201,127,212,.18); color: var(--cat-ent); }
-    .cat-sports { background: rgba(255,159,90,.18);  color: var(--cat-sports); }
-    .cat-sci    { background: rgba(79,195,195,.18);  color: var(--cat-sci); }
-    .cat-life   { background: rgba(130,201,108,.18); color: var(--cat-life); }
-    .cat-gourmet{ background: rgba(245,166,35,.18);  color: var(--cat-gourmet); }
-    .cat-other  { background: rgba(139,144,167,.18); color: var(--cat-other); }
-
-    /* ===== カードリンク ===== */
-    .card-link {
-      color: var(--text);
+      cursor: pointer;
       text-decoration: none;
+      display: inline-block;
+      transition: background 0.15s;
     }
-    .card-link:hover {
-      color: var(--accent-hover);
-      text-decoration: underline;
-    }
+    .dl-btn:hover { background: #2563eb; }
 
-    /* ===== 空状態 ===== */
-    .empty {
+    .bm-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text-muted);
+      padding: 4px 8px;
+      font-size: 14px;
+      cursor: pointer;
+      line-height: 1;
+      transition: all 0.15s;
+    }
+    .bm-btn.on { color: var(--yellow); border-color: #b45309; }
+    .bm-btn:hover { border-color: var(--yellow); color: var(--yellow); }
+
+    /* ===== ローディング / 空状態 ===== */
+    .loading-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 60px 20px;
+      color: var(--text-sub);
+      grid-column: 1/-1;
+    }
+    .spinner {
+      width: 30px; height: 30px;
+      border: 3px solid var(--border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-box {
       text-align: center;
       padding: 60px 20px;
       color: var(--text-sub);
+      grid-column: 1/-1;
     }
-    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-box h3 { color: var(--text); margin-bottom: 6px; }
+    .empty-box p  { font-size: 13px; }
 
-    /* ===== レコメンドバナー ===== */
-    .recommend-banner {
-      background: linear-gradient(135deg, #1e2236, #242736);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px 16px;
-      margin-bottom: 16px;
-      font-size: 13px;
-      color: var(--text-sub);
-      display: none;
-    }
-    .recommend-banner.visible { display: block; }
-    .recommend-banner strong { color: var(--text); }
-    .recommend-cats {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 8px;
-    }
-    .recommend-cat {
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.15s;
-    }
-    .recommend-cat:hover { opacity: 0.75; }
+    /* ===== ビュー切替 ===== */
+    .view-panel { display: none; }
+    .view-panel.active { display: block; }
 
-    /* ===== ブックマークページ ===== */
-    .bookmark-header {
+    /* ===== ファーム比較ビュー ===== */
+    .comparison-ctrl {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      margin-bottom: 16px;
+      gap: 10px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
     }
-    .bookmark-count {
-      font-size: 13px;
-      color: var(--text-sub);
-    }
-    .clear-btn {
-      background: none;
+    .comparison-ctrl label { font-size: 13px; color: var(--text-sub); }
+    .comp-select {
+      background: var(--surface);
       border: 1px solid var(--border);
-      color: var(--text-sub);
-      padding: 5px 12px;
       border-radius: 6px;
-      cursor: pointer;
-      font-size: 12px;
-      transition: border-color 0.15s, color 0.15s;
+      color: var(--text);
+      padding: 7px 12px;
+      font-size: 13px;
+      outline: none;
+      min-width: 200px;
     }
-    .clear-btn:hover { border-color: #e06c6c; color: #e06c6c; }
+
+    .comp-firm-section { margin-bottom: 24px; }
+    .comp-firm-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--purple);
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .comp-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 10px;
+    }
+
+    /* ===== ブックマークビュー ===== */
+    .bm-analysis {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 18px;
+    }
+    .bm-analysis h3 { font-size: 13px; color: var(--text-sub); margin-bottom: 10px; }
+    .tendency-msg { font-size: 14px; color: var(--text); line-height: 1.7; }
+    .tendency-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+
+    /* ===== モバイルサイドバーオーバーレイ ===== */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 300;
+    }
+    .sidebar-overlay.open { display: block; }
+    .sidebar-overlay .sidebar {
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      z-index: 301;
+      width: 280px;
+      height: 100vh;
+    }
 
     /* ===== レスポンシブ ===== */
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .mobile-filter-btn { display: block; }
+      .card-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    }
     @media (max-width: 600px) {
-      .header-inner { height: 48px; }
-      .logo { font-size: 17px; }
-      .main { padding: 12px; }
-      .card { padding: 12px; }
-      .nav-tab { padding: 9px 10px; font-size: 12px; }
+      .card-grid { grid-template-columns: 1fr; }
+      .sort-select { display: none; }
+      .nav-tab { padding: 5px 9px; font-size: 12px; }
+      .header { gap: 8px; }
+      .logo-sub { display: none; }
     }
   </style>
 </head>
 <body>
 
+<!-- ===== ヘッダー ===== -->
 <header class="header">
-  <div class="header-inner">
-    <a href="#" class="logo">⚡ はてな<span>バズ</span></a>
-    <div class="header-meta" id="last-updated">読み込み中…</div>
+  <div>
+    <div class="logo">ConsulSlides</div>
+    <div class="logo-sub">官公庁委託報告書 学習DB</div>
+  </div>
+
+  <div class="search-wrap">
+    <input class="search-input" id="searchInput" type="text"
+      placeholder="タイトル・ファーム名で検索..." />
+  </div>
+
+  <div class="header-right">
+    <button class="mobile-filter-btn" id="mobileFilterBtn">フィルター</button>
+    <select class="sort-select" id="sortSelect">
+      <option value="newest">新着順</option>
+      <option value="firm">ファーム名順</option>
+      <option value="slides">スライド枚数順</option>
+    </select>
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-view="slides">スライド一覧</button>
+      <button class="nav-tab" data-view="comparison">ファーム比較</button>
+      <button class="nav-tab" data-view="bookmarks">ブックマーク</button>
+    </div>
   </div>
 </header>
 
-<div class="nav-wrapper">
-  <nav class="nav" id="nav-tabs">
-    <button class="nav-tab active" data-view="all">すべて</button>
-    <button class="nav-tab" data-view="AI・テクノロジー">AI・テクノロジー</button>
-    <button class="nav-tab" data-view="ビジネス・キャリア">ビジネス・キャリア</button>
-    <button class="nav-tab" data-view="政治・社会">政治・社会</button>
-    <button class="nav-tab" data-view="エンタメ・文化">エンタメ・文化</button>
-    <button class="nav-tab" data-view="スポーツ">スポーツ</button>
-    <button class="nav-tab" data-view="科学・教育">科学・教育</button>
-    <button class="nav-tab" data-view="生活・健康">生活・健康</button>
-    <button class="nav-tab" data-view="グルメ・食">グルメ・食</button>
-    <button class="nav-tab" data-view="その他">その他</button>
-    <button class="nav-tab" data-view="bookmarks">🔖 ブックマーク</button>
-  </nav>
+<!-- ===== モバイルサイドバーオーバーレイ ===== -->
+<div class="sidebar-overlay" id="sidebarOverlay">
+  <aside class="sidebar" id="mobileSidebar"></aside>
 </div>
 
-<main class="main">
-  <div id="recommend-banner" class="recommend-banner">
-    <strong>あなたへのおすすめ</strong>（ブックマークの傾向より）
-    <div class="recommend-cats" id="recommend-cats"></div>
-  </div>
-  <div id="content"></div>
-</main>
+<!-- ===== メインレイアウト ===== -->
+<div class="layout">
+
+  <!-- サイドバー（デスクトップ） -->
+  <aside class="sidebar" id="mainSidebar">
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">統計</div>
+      <div class="stat-row">
+        <span>総資料数</span>
+        <span class="stat-val" id="totalCount">—</span>
+      </div>
+      <div class="stat-row">
+        <span>今週追加</span>
+        <span class="stat-val" id="weekCount">—</span>
+      </div>
+      <div class="stat-row">
+        <span>ファーム数</span>
+        <span class="stat-val" id="firmCount">—</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">ファーム別件数 Top5</div>
+      <div id="firmRanking"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">絞り込み</div>
+
+      <div class="filter-group">
+        <div class="filter-group-label">構造タグ</div>
+        <div class="filter-chips" id="structureChips"></div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-label">デザインタグ</div>
+        <div class="filter-chips" id="designChips"></div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-label">テーマタグ</div>
+        <div class="filter-chips" id="themeChips"></div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-label">年度</div>
+        <select class="filter-select" id="yearSelect">
+          <option value="">全年度</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-label">ファーム</div>
+        <select class="filter-select" id="firmSelect">
+          <option value="">全ファーム</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-label">ファイル形式</div>
+        <div class="filter-chips" id="typeChips">
+          <span class="chip" data-val="pdf">PDF</span>
+          <span class="chip" data-val="pptx">PPTX</span>
+          <span class="chip" data-val="ppt">PPT</span>
+        </div>
+      </div>
+
+      <button class="clear-btn" id="clearBtn">フィルターをリセット</button>
+    </div>
+  </aside>
+
+  <!-- コンテンツ -->
+  <main class="content">
+
+    <!-- スライド一覧 -->
+    <div id="slidesView" class="view-panel active">
+      <div class="results-bar">
+        <div class="results-count" id="resultsCount">読み込み中...</div>
+      </div>
+      <div class="card-grid" id="cardGrid">
+        <div class="loading-box">
+          <div class="spinner"></div>
+          <div>データを取得中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ファーム比較 -->
+    <div id="comparisonView" class="view-panel">
+      <div class="comparison-ctrl">
+        <label>テーマで比較：</label>
+        <select class="comp-select" id="compThemeSelect">
+          <option value="">テーマを選択してください</option>
+        </select>
+        <span id="compSummary" style="font-size:12px;color:var(--text-muted)"></span>
+      </div>
+      <div id="compContent">
+        <div class="empty-box">
+          <h3>テーマを選択してください</h3>
+          <p>同じテーマを各コンサルファームがどう構造化したか並べて確認できます</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ブックマーク -->
+    <div id="bookmarksView" class="view-panel">
+      <div id="bmAnalysis"></div>
+      <div class="card-grid" id="bmGrid"></div>
+    </div>
+
+  </main>
+</div><!-- /.layout -->
 
 <script>
-// ===== 設定 =====
-// ※ご自身のGistに合わせて書き換えてください
-const GIST_USERNAME = "ytmori1013-dev";
-const GIST_ID       = "3ee194081ef79b74ebd331f4052bc354";
-const GIST_RAW_URL  = `https://gist.githubusercontent.com/${GIST_USERNAME}/${GIST_ID}/raw/data.json`;
+/* =====================================================
+   設定（使用前に書き換えてください）
+   ===================================================== */
+const GIST_USERNAME = "YOUR_USERNAME";
+const GIST_ID       = "YOUR_GIST_ID";
 
-// ===== カテゴリ → CSSクラス マッピング =====
-const CATEGORY_CLASS = {
-  "AI・テクノロジー": "cat-ai",
-  "ビジネス・キャリア": "cat-biz",
-  "政治・社会": "cat-poli",
-  "エンタメ・文化": "cat-ent",
-  "スポーツ": "cat-sports",
-  "科学・教育": "cat-sci",
-  "生活・健康": "cat-life",
-  "グルメ・食": "cat-gourmet",
-  "その他": "cat-other",
+/* =====================================================
+   定数
+   ===================================================== */
+const STRUCTURE_TAGS = [
+  "Issue Tree", "MECE", "So What",
+  "ピラミッド構造", "Hypothesis driven", "データドリブン"
+];
+const DESIGN_TAGS = [
+  "図解中心", "テキスト重視", "データビジュアライズ", "インフォグラフィック"
+];
+const THEME_TAGS = [
+  "DX・デジタル", "人的資本", "GX・脱炭素", "スタートアップ",
+  "社会保障", "産業政策", "地域・まちづくり", "海外・グローバル"
+];
+
+/* =====================================================
+   サンプルデータ（Gist未設定時のデモ表示用）
+   ===================================================== */
+const SAMPLE_SLIDES = [
+  {
+    id: "demo001", title: "令和6年度 DX推進に向けた人材育成・確保に関する調査報告書",
+    url: "#", file_type: "pptx", fiscal_year: "令和6", firm_name: "BCG",
+    tags: { structure: ["Issue Tree","So What"], design: ["図解中心"], theme: ["DX・デジタル","人的資本"], year: ["令和6"] },
+    slide_count: 52, crawled_at: new Date().toISOString()
+  },
+  {
+    id: "demo002", title: "令和5年度 GX推進のための産業政策に関する調査研究",
+    url: "#", file_type: "pdf", fiscal_year: "令和5", firm_name: "Deloitte",
+    tags: { structure: ["MECE","データドリブン"], design: ["データビジュアライズ"], theme: ["GX・脱炭素","産業政策"], year: ["令和5"] },
+    slide_count: 38, crawled_at: new Date(Date.now()-86400000).toISOString()
+  },
+  {
+    id: "demo003", title: "令和6年度 スタートアップ・エコシステムの強化に関する調査",
+    url: "#", file_type: "pptx", fiscal_year: "令和6", firm_name: "McKinsey",
+    tags: { structure: ["Hypothesis driven","ピラミッド構造"], design: ["図解中心"], theme: ["スタートアップ","海外・グローバル"], year: ["令和6"] },
+    slide_count: 67, crawled_at: new Date(Date.now()-3600000).toISOString()
+  },
+  {
+    id: "demo004", title: "令和5年度 地域経済の活性化に向けた政策に関する調査報告",
+    url: "#", file_type: "pptx", fiscal_year: "令和5", firm_name: "NRI",
+    tags: { structure: ["Issue Tree"], design: ["テキスト重視"], theme: ["地域・まちづくり","産業政策"], year: ["令和5"] },
+    slide_count: 29, crawled_at: new Date(Date.now()-172800000).toISOString()
+  },
+  {
+    id: "demo005", title: "令和6年度 社会保障制度の持続可能性に関する調査研究",
+    url: "#", file_type: "pdf", fiscal_year: "令和6", firm_name: "PwC",
+    tags: { structure: ["データドリブン","MECE"], design: ["データビジュアライズ"], theme: ["社会保障","人的資本"], year: ["令和6"] },
+    slide_count: 0, crawled_at: new Date(Date.now()-259200000).toISOString()
+  },
+  {
+    id: "demo006", title: "令和4年度 海外市場開拓支援に向けた調査報告書",
+    url: "#", file_type: "pptx", fiscal_year: "令和4", firm_name: "Accenture",
+    tags: { structure: ["So What","ピラミッド構造"], design: ["インフォグラフィック"], theme: ["海外・グローバル","DX・デジタル"], year: ["令和4"] },
+    slide_count: 44, crawled_at: new Date(Date.now()-345600000).toISOString()
+  }
+];
+
+/* =====================================================
+   状態
+   ===================================================== */
+let allSlides = [];
+let bookmarks = new Set(JSON.parse(localStorage.getItem("cs_bookmarks") || "[]"));
+let lastVisit  = localStorage.getItem("cs_last_visit") || "";
+let currentView = "slides";
+let currentSort = "newest";
+let isDemoMode  = false;
+
+const filters = {
+  text:      "",
+  structure: new Set(),
+  design:    new Set(),
+  theme:     new Set(),
+  year:      "",
+  firm:      "",
+  fileType:  new Set(),
 };
 
-// ===== カテゴリ → アクセントカラー =====
-const CATEGORY_COLOR = {
-  "AI・テクノロジー": "#6c8fff",
-  "ビジネス・キャリア": "#4caf82",
-  "政治・社会": "#e06c6c",
-  "エンタメ・文化": "#c97fd4",
-  "スポーツ": "#ff9f5a",
-  "科学・教育": "#4fc3c3",
-  "生活・健康": "#82c96c",
-  "グルメ・食": "#f5a623",
-  "その他": "#8b90a7",
-};
-
-// ===== 状態 =====
-let allTweets = [];
-let currentView = "all";
-const STORAGE_KEY = "buzz_tracker_bookmarks";
-
-// ===== ブックマーク操作 =====
-function getBookmarks() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-  } catch {
-    return {};
-  }
+/* =====================================================
+   ユーティリティ
+   ===================================================== */
+function esc(str) {
+  return String(str ?? "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-function toggleBookmark(tweetId, tweetData) {
-  const bm = getBookmarks();
-  if (bm[tweetId]) {
-    delete bm[tweetId];
-  } else {
-    bm[tweetId] = tweetData;
-  }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(bm));
-  return !!bm[tweetId];
+function isNew(slide) {
+  if (!lastVisit) return false;
+  return (slide.crawled_at || "") > lastVisit;
 }
 
-function isBookmarked(tweetId) {
-  return !!getBookmarks()[tweetId];
+function ftClass(ft) {
+  if (ft === "pdf")  return "ft-pdf";
+  if (ft === "pptx") return "ft-pptx";
+  if (ft === "ppt")  return "ft-ppt";
+  return "ft-other";
 }
 
-// ===== 数値フォーマット =====
-function fmtNum(n) {
-  if (n == null) return "-";
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
-  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
-  return n.toString();
-}
-
-// ===== アバター（名前の頭文字）=====
-function avatarChar(author) {
-  return (author || "?").charAt(0).toUpperCase();
-}
-
-// ===== カードHTML生成 =====
-function buildCard(tweet) {
-  const bmd = isBookmarked(tweet.tweet_id);
-  const catClass = CATEGORY_CLASS[tweet.category] || "cat-other";
-  const titleEl = tweet.url
-    ? `<a href="${escHtml(tweet.url)}" target="_blank" rel="noopener" class="card-link">${escHtml(tweet.text)}</a>`
-    : escHtml(tweet.text);
-
-  return `
-    <div class="card" data-id="${tweet.tweet_id}">
-      <div class="card-header">
-        <div class="avatar">${avatarChar(tweet.author)}</div>
-        <div class="author-info">
-          <div class="author-name">${escHtml(tweet.author)}</div>
-          <div class="author-id">${escHtml(tweet.timestamp ? tweet.timestamp.slice(0, 10) : "")}</div>
-        </div>
-        <button class="bookmark-btn ${bmd ? "bookmarked" : ""}"
-                data-id="${tweet.tweet_id}"
-                title="${bmd ? "ブックマーク解除" : "ブックマーク"}">
-          🔖
-        </button>
-      </div>
-      <div class="card-text">${titleEl}</div>
-      <div class="card-footer">
-        <span class="stat"><span class="stat-icon">🔖</span><span class="stat-num">${fmtNum(tweet.likes)}</span><span style="font-size:11px;margin-left:2px;color:var(--text-sub)">users</span></span>
-        ${tweet.retweets ? `<span class="stat"><span class="stat-icon">💬</span><span class="stat-num">${fmtNum(tweet.retweets)}</span></span>` : ""}
-        <span class="category-badge ${catClass}">${tweet.category || "その他"}</span>
-      </div>
-    </div>`;
-}
-
-function escHtml(str) {
-  return (str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
-
-// ===== レコメンドバナー更新 =====
-function updateRecommend() {
-  const bm = getBookmarks();
-  const bmList = Object.values(bm);
-  const banner = document.getElementById("recommend-banner");
-  const catsEl = document.getElementById("recommend-cats");
-
-  if (bmList.length < 2) {
-    banner.classList.remove("visible");
-    return;
-  }
-
-  // カテゴリの出現頻度を集計
-  const freq = {};
-  bmList.forEach(t => {
-    const c = t.category || "その他";
-    freq[c] = (freq[c] || 0) + 1;
-  });
-
-  const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 3);
-
-  catsEl.innerHTML = sorted.map(([cat]) => {
-    const color = CATEGORY_COLOR[cat] || "#8b90a7";
-    return `<button class="recommend-cat" style="background:${color}22;color:${color}"
-              onclick="switchView('${cat}')">${cat}</button>`;
-  }).join("");
-
-  banner.classList.add("visible");
-}
-
-// ===== メインコンテンツ描画 =====
-function renderView(view) {
-  currentView = view;
-  const content = document.getElementById("content");
-
-  if (view === "bookmarks") {
-    renderBookmarks(content);
-    updateRecommend();
-    return;
-  }
-
-  updateRecommend();
-
-  const tweets = view === "all"
-    ? allTweets
-    : allTweets.filter(t => t.category === view);
-
-  if (!tweets.length) {
-    content.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div>このカテゴリにはまだデータがありません</div>`;
-    return;
-  }
-
-  content.innerHTML = `<div class="cards-grid">${tweets.map(buildCard).join("")}</div>`;
-  attachBookmarkListeners(content);
-}
-
-function renderBookmarks(container) {
-  const bm = getBookmarks();
-  const tweets = Object.values(bm);
-
-  const headerHtml = `
-    <div class="bookmark-header">
-      <span class="bookmark-count">ブックマーク ${tweets.length} 件</span>
-      ${tweets.length ? `<button class="clear-btn" id="clear-all-btn">すべて削除</button>` : ""}
-    </div>`;
-
-  if (!tweets.length) {
-    container.innerHTML = headerHtml + `<div class="empty"><div class="empty-icon">🔖</div>ブックマークはまだありません</div>`;
-    return;
-  }
-
-  container.innerHTML = headerHtml + `<div class="cards-grid">${tweets.map(buildCard).join("")}</div>`;
-  attachBookmarkListeners(container);
-
-  const clearBtn = document.getElementById("clear-all-btn");
-  if (clearBtn) {
-    clearBtn.addEventListener("click", () => {
-      if (confirm("すべてのブックマークを削除しますか？")) {
-        localStorage.removeItem(STORAGE_KEY);
-        renderBookmarks(container);
-        updateRecommend();
-      }
-    });
-  }
-}
-
-// ===== ブックマークボタンのイベント付与 =====
-function attachBookmarkListeners(container) {
-  container.querySelectorAll(".bookmark-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.id;
-      const card = btn.closest(".card");
-      const tweet = allTweets.find(t => t.tweet_id === id)
-        || Object.values(getBookmarks()).find(t => t.tweet_id === id);
-
-      if (!tweet) return;
-
-      const nowBookmarked = toggleBookmark(id, tweet);
-      btn.classList.toggle("bookmarked", nowBookmarked);
-      btn.title = nowBookmarked ? "ブックマーク解除" : "ブックマーク";
-
-      // ブックマークページ表示中なら再描画
-      if (currentView === "bookmarks") {
-        renderBookmarks(document.getElementById("content"));
-        updateRecommend();
-      }
-    });
-  });
-}
-
-// ===== タブ切り替え =====
-function switchView(view) {
-  document.querySelectorAll(".nav-tab").forEach(tab => {
-    tab.classList.toggle("active", tab.dataset.view === view);
-  });
-  renderView(view);
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-// ===== データ取得 =====
+/* =====================================================
+   データ取得
+   ===================================================== */
 async function loadData() {
-  const content = document.getElementById("content");
-  content.innerHTML = `<div class="loading"><div class="spinner"></div><br>データを読み込み中…</div>`;
+  if (GIST_USERNAME === "YOUR_USERNAME" || GIST_ID === "YOUR_GIST_ID") {
+    isDemoMode = true;
+    console.info("[ConsulSlides] デモモードで表示します。GIST_USERNAME と GIST_ID を設定してください。");
+    allSlides = SAMPLE_SLIDES;
+    initUI();
+    return;
+  }
 
   try {
-    const res = await fetch(GIST_RAW_URL + "?_=" + Date.now());
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    // まず raw URL を試みる（キャッシュが最新でない場合がある）
+    const rawUrl = `https://gist.githubusercontent.com/${esc(GIST_USERNAME)}/${esc(GIST_ID)}/raw/slides.json`;
+    let resp = await fetch(rawUrl);
 
-    allTweets = data.tweets || [];
-
-    // 最終更新時刻
-    if (data.last_updated) {
-      const d = new Date(data.last_updated + "Z");
-      const fmt = new Intl.DateTimeFormat("ja-JP", {
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo",
-      });
-      document.getElementById("last-updated").textContent = "最終更新: " + fmt.format(d);
-    } else {
-      document.getElementById("last-updated").textContent = "";
+    if (!resp.ok) {
+      // GitHub API 経由でフォールバック
+      const apiResp = await fetch(`https://api.github.com/gists/${esc(GIST_ID)}`);
+      if (!apiResp.ok) throw new Error(`API ${apiResp.status}`);
+      const gist = await apiResp.json();
+      const fileInfo = gist.files?.["slides.json"];
+      if (!fileInfo) throw new Error("slides.json が Gist に存在しません");
+      resp = await fetch(fileInfo.raw_url);
     }
 
-    renderView(currentView);
-  } catch (err) {
-    content.innerHTML = `<div class="error-msg">⚠️ データの読み込みに失敗しました<br><small>${err.message}</small><br><br><small>GIST_USERNAME / GIST_ID が正しく設定されているか確認してください。</small></div>`;
-    document.getElementById("last-updated").textContent = "";
-    console.error("データ取得エラー:", err);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    allSlides = data.slides || [];
+    initUI(data);
+  } catch (e) {
+    document.getElementById("cardGrid").innerHTML = `
+      <div class="empty-box">
+        <h3>データの取得に失敗しました</h3>
+        <p style="margin-top:6px;font-size:12px">
+          GIST_USERNAME・GIST_ID の設定を確認してください<br>
+          <code style="color:var(--text-muted)">${esc(e.message)}</code>
+        </p>
+      </div>`;
+    document.getElementById("resultsCount").textContent = "エラー";
   }
 }
 
-// ===== 初期化 =====
-document.addEventListener("DOMContentLoaded", () => {
-  // タブクリックイベント
-  document.getElementById("nav-tabs").addEventListener("click", e => {
-    const tab = e.target.closest(".nav-tab");
-    if (!tab) return;
-    switchView(tab.dataset.view);
+/* =====================================================
+   UI 初期化
+   ===================================================== */
+function initUI(data) {
+  updateStats(data);
+  buildFilters();
+  applyAndRender();
+  localStorage.setItem("cs_last_visit", new Date().toISOString());
+}
+
+/* ===== 統計パネル ===== */
+function updateStats(data) {
+  const total = data?.total_count ?? allSlides.length;
+  document.getElementById("totalCount").textContent = total.toLocaleString();
+
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+  const weekNew = allSlides.filter(s => (s.crawled_at || "") >= weekAgo).length;
+  document.getElementById("weekCount").textContent = weekNew;
+
+  const firms = new Set(allSlides.map(s => s.firm_name || "不明").filter(Boolean));
+  firms.delete("不明");
+  document.getElementById("firmCount").textContent = firms.size;
+
+  // ファーム別ランキング
+  const fc = {};
+  allSlides.forEach(s => { const f = s.firm_name || "不明"; fc[f] = (fc[f]||0) + 1; });
+  const top5 = Object.entries(fc).sort((a,b) => b[1]-a[1]).slice(0,5);
+  const max  = top5[0]?.[1] || 1;
+  document.getElementById("firmRanking").innerHTML = top5.map(([name,cnt]) => `
+    <div class="firm-bar">
+      <div class="firm-bar-head">
+        <span>${esc(name)}</span>
+        <span>${cnt}</span>
+      </div>
+      <div class="firm-bar-track">
+        <div class="firm-bar-fill" style="width:${(cnt/max*100).toFixed(1)}%"></div>
+      </div>
+    </div>`).join("");
+}
+
+/* ===== フィルターUI構築 ===== */
+function buildFilters() {
+  buildChips("structureChips", STRUCTURE_TAGS, "structure", "on-blue");
+  buildChips("designChips",    DESIGN_TAGS,    "design",    "on-green");
+  buildChips("themeChips",     THEME_TAGS,     "theme",     "on-orange");
+
+  // 年度選択肢
+  const years = [...new Set(
+    allSlides.map(s => s.fiscal_year || s.tags?.year?.[0] || "").filter(Boolean)
+  )].sort().reverse();
+  const ysel = document.getElementById("yearSelect");
+  years.forEach(y => ysel.append(Object.assign(document.createElement("option"), {value:y,textContent:y})));
+
+  // ファーム選択肢
+  const flist = [...new Set(allSlides.map(s => s.firm_name||"不明"))].sort((a,b) => a.localeCompare(b,"ja"));
+  const fsel  = document.getElementById("firmSelect");
+  flist.forEach(f => fsel.append(Object.assign(document.createElement("option"), {value:f,textContent:f})));
+
+  // ファイル形式チップ（typeChips は HTML に既定義）
+  document.querySelectorAll("#typeChips .chip").forEach(el => {
+    el.addEventListener("click", () => toggleTypeFilter(el));
   });
 
-  loadData();
-});
-</script>
+  // 比較ビューのテーマ選択肢
+  const csel = document.getElementById("compThemeSelect");
+  THEME_TAGS.forEach(t => csel.append(Object.assign(document.createElement("option"),{value:t,textContent:t})));
+}
 
+function buildChips(containerId, tags, filterKey, onClass) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = tags.map(t =>
+    `<span class="chip" data-filter="${filterKey}" data-tag="${esc(t)}">${esc(t)}</span>`
+  ).join("");
+  el.querySelectorAll(".chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const tag = chip.dataset.tag;
+      const s   = filters[filterKey];
+      if (s.has(tag)) { s.delete(tag); chip.classList.remove(onClass); }
+      else            { s.add(tag);    chip.classList.add(onClass); }
+      applyAndRender();
+    });
+  });
+}
+
+function toggleTypeFilter(el) {
+  const val = el.dataset.val;
+  if (filters.fileType.has(val)) { filters.fileType.delete(val); el.classList.remove("on-blue"); }
+  else                           { filters.fileType.add(val);    el.classList.add("on-blue"); }
+  applyAndRender();
+}
+
+/* =====================================================
+   フィルター適用
+   ===================================================== */
+function applyFilters() {
+  return allSlides.filter(s => {
+    if (filters.text) {
+      const q = filters.text.toLowerCase();
+      if (!((s.title||"")+(s.firm_name||"")).toLowerCase().includes(q)) return false;
+    }
+    if (filters.structure.size) {
+      const st = s.tags?.structure || [];
+      if (![...filters.structure].some(t => st.includes(t))) return false;
+    }
+    if (filters.design.size) {
+      const dt = s.tags?.design || [];
+      if (![...filters.design].some(t => dt.includes(t))) return false;
+    }
+    if (filters.theme.size) {
+      const tt = s.tags?.theme || [];
+      if (![...filters.theme].some(t => tt.includes(t))) return false;
+    }
+    if (filters.year) {
+      const yr = s.fiscal_year || s.tags?.year?.[0] || "";
+      if (yr !== filters.year) return false;
+    }
+    if (filters.firm) {
+      if ((s.firm_name||"不明") !== filters.firm) return false;
+    }
+    if (filters.fileType.size) {
+      if (!filters.fileType.has(s.file_type||"")) return false;
+    }
+    return true;
+  });
+}
+
+function sortSlides(arr) {
+  const copy = [...arr];
+  if (currentSort === "newest") return copy.sort((a,b)=>(b.crawled_at||"").localeCompare(a.crawled_at||""));
+  if (currentSort === "firm")   return copy.sort((a,b)=>(a.firm_name||"不明").localeCompare(b.firm_name||"不明","ja"));
+  if (currentSort === "slides") return copy.sort((a,b)=>(b.slide_count||0)-(a.slide_count||0));
+  return copy;
+}
+
+function applyAndRender() {
+  if (currentView !== "slides") return;
+  const filtered = sortSlides(applyFilters());
+  const demoNote = isDemoMode
+    ? " <span style='color:var(--orange);font-size:11px'>（デモデータ）</span>" : "";
+  document.getElementById("resultsCount").innerHTML =
+    `<strong>${filtered.length.toLocaleString()}</strong> 件の資料${demoNote}`;
+
+  const grid = document.getElementById("cardGrid");
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-box">
+        <h3>条件に一致する資料がありません</h3>
+        <p>フィルターを変更してお試しください</p>
+      </div>`;
+  } else {
+    grid.innerHTML = filtered.map(s => renderCard(s)).join("");
+    attachBmEvents(grid);
+  }
+}
+
+/* =====================================================
+   カードレンダリング
+   ===================================================== */
+function renderCard(s) {
+  const bm   = bookmarks.has(s.id);
+  const tags = s.tags || {};
+  const sTags = (tags.structure||[]).slice(0,3);
+  const dTags = (tags.design||[]).slice(0,2);
+  const tTags = (tags.theme||[]).slice(0,3);
+  const yr    = (tags.year||[])[0] || s.fiscal_year || "";
+  const ft    = s.file_type || "unknown";
+
+  const allBadges = [
+    ...sTags.map(t=>`<span class="badge b-struct">${esc(t)}</span>`),
+    ...dTags.map(t=>`<span class="badge b-design">${esc(t)}</span>`),
+    ...tTags.map(t=>`<span class="badge b-theme">${esc(t)}</span>`),
+  ].join("");
+
+  return `
+<div class="slide-card">
+  ${isNew(s) ? '<span class="new-badge">NEW</span>' : ""}
+  <div class="card-title">
+    <a href="${esc(s.url||"#")}" target="_blank" rel="noopener">${esc(s.title||"(タイトルなし)")}</a>
+  </div>
+  <div class="card-badges">
+    <span class="badge b-firm">${esc(s.firm_name||"不明")}</span>
+    ${yr ? `<span class="badge b-year">${esc(yr)}</span>` : ""}
+  </div>
+  ${allBadges ? `<div class="card-tags">${allBadges}</div>` : ""}
+  <div class="card-footer">
+    <div class="card-meta">
+      <span class="ft-badge ${ftClass(ft)}">${esc(ft.toUpperCase())}</span>
+      ${(s.slide_count||0) > 0 ? `<span>📄 ${s.slide_count}枚</span>` : ""}
+    </div>
+    <div class="card-actions">
+      <a href="${esc(s.url||"#")}" target="_blank" rel="noopener" class="dl-btn">DL</a>
+      <button class="bm-btn ${bm?"on":""}" data-id="${esc(s.id||"")}">${bm?"★":"☆"}</button>
+    </div>
+  </div>
+</div>`;
+}
+
+function attachBmEvents(container) {
+  container.querySelectorAll(".bm-btn").forEach(btn => {
+    btn.addEventListener("click", () => toggleBookmark(btn.dataset.id));
+  });
+}
+
+/* =====================================================
+   ブックマーク
+   ===================================================== */
+function toggleBookmark(id) {
+  if (!id) return;
+  bookmarks.has(id) ? bookmarks.delete(id) : bookmarks.add(id);
+  localStorage.setItem("cs_bookmarks", JSON.stringify([...bookmarks]));
+
+  document.querySelectorAll(`.bm-btn[data-id="${id}"]`).forEach(btn => {
+    const on = bookmarks.has(id);
+    btn.textContent = on ? "★" : "☆";
+    btn.classList.toggle("on", on);
+  });
+
+  if (currentView === "bookmarks") renderBookmarksView();
+}
+
+/* =====================================================
+   ブックマークビュー
+   ===================================================== */
+function renderBookmarksView() {
+  const bmSlides = allSlides.filter(s => bookmarks.has(s.id));
+  const analysis = document.getElementById("bmAnalysis");
+  const grid     = document.getElementById("bmGrid");
+
+  if (bmSlides.length === 0) {
+    analysis.innerHTML = "";
+    grid.innerHTML = `
+      <div class="empty-box">
+        <h3>ブックマークはありません</h3>
+        <p>カードの ☆ ボタンで追加できます</p>
+      </div>`;
+    return;
+  }
+
+  // タグ傾向集計
+  const tc = {};
+  bmSlides.forEach(s => {
+    const t = s.tags || {};
+    [...(t.structure||[]),...(t.design||[]),...(t.theme||[])].forEach(tag => {
+      tc[tag] = (tc[tag]||0) + 1;
+    });
+  });
+  const topTags = Object.entries(tc).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  const msg = topTags.length > 0
+    ? `あなたは <strong>${topTags.map(([t])=>esc(t)).join("・")}</strong> 系をよく学んでいます`
+    : "ブックマークを増やすと学習傾向が表示されます";
+
+  analysis.innerHTML = `
+    <div class="bm-analysis">
+      <h3>学習傾向 — ${bmSlides.length}件ブックマーク済み</h3>
+      <div class="tendency-msg">${msg}</div>
+      ${topTags.length > 0 ? `
+      <div class="tendency-chips">
+        ${topTags.map(([tag,cnt]) => {
+          const cls = STRUCTURE_TAGS.includes(tag)?"b-struct":DESIGN_TAGS.includes(tag)?"b-design":"b-theme";
+          return `<span class="badge ${cls}">${esc(tag)} (${cnt})</span>`;
+        }).join("")}
+      </div>` : ""}
+    </div>`;
+
+  grid.innerHTML = bmSlides.map(s => renderCard(s)).join("");
+  attachBmEvents(grid);
+}
+
+/* =====================================================
+   ファーム比較ビュー
+   ===================================================== */
+function renderComparisonView(theme) {
+  const content = document.getElementById("compContent");
+  const summary = document.getElementById("compSummary");
+
+  if (!theme) {
+    summary.textContent = "";
+    content.innerHTML = `
+      <div class="empty-box">
+        <h3>テーマを選択してください</h3>
+        <p>同じテーマを各ファームがどう構造化したか並べて確認できます</p>
+      </div>`;
+    return;
+  }
+
+  const themed = allSlides.filter(s => (s.tags?.theme||[]).includes(theme));
+  if (themed.length === 0) {
+    summary.textContent = "";
+    content.innerHTML = `
+      <div class="empty-box">
+        <h3>「${esc(theme)}」の資料はまだありません</h3>
+      </div>`;
+    return;
+  }
+
+  // ファーム別グループ化
+  const byFirm = {};
+  themed.forEach(s => {
+    const f = s.firm_name || "不明";
+    (byFirm[f] = byFirm[f]||[]).push(s);
+  });
+  const sorted = Object.entries(byFirm).sort((a,b) => b[1].length-a[1].length);
+
+  summary.textContent = `${themed.length}件 / ${sorted.length}ファーム`;
+  content.innerHTML = sorted.map(([firm, slides]) => `
+    <div class="comp-firm-section">
+      <div class="comp-firm-title">🏢 ${esc(firm)} — ${slides.length}件</div>
+      <div class="comp-cards">
+        ${slides.slice(0, 8).map(s => renderCard(s)).join("")}
+      </div>
+    </div>`).join("");
+
+  attachBmEvents(content);
+}
+
+/* =====================================================
+   ビュー切り替え
+   ===================================================== */
+function switchView(view) {
+  currentView = view;
+  ["slides","comparison","bookmarks"].forEach(v => {
+    document.getElementById(v+"View").classList.toggle("active", v===view);
+  });
+  document.querySelectorAll(".nav-tab").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.view === view);
+  });
+  if (view === "bookmarks")  renderBookmarksView();
+  if (view === "comparison") renderComparisonView(document.getElementById("compThemeSelect").value);
+  if (view === "slides")     applyAndRender();
+}
+
+/* =====================================================
+   モバイルサイドバー
+   ===================================================== */
+function openMobileSidebar() {
+  const ms = document.getElementById("mobileSidebar");
+  ms.innerHTML = document.getElementById("mainSidebar").innerHTML;
+  document.getElementById("sidebarOverlay").classList.add("open");
+
+  // クローンしたチップ・selectにもイベントを再バインド
+  ms.querySelectorAll(".chip[data-filter]").forEach(chip => {
+    const fkey = chip.dataset.filter;
+    const tag  = chip.dataset.tag;
+    const onC  = fkey==="structure"?"on-blue":fkey==="design"?"on-green":"on-orange";
+    if (filters[fkey]?.has(tag)) chip.classList.add(onC);
+    chip.addEventListener("click", () => {
+      const s = filters[fkey];
+      if (s.has(tag)) { s.delete(tag); chip.classList.remove(onC); }
+      else            { s.add(tag);    chip.classList.add(onC); }
+      syncSidebarState();
+      applyAndRender();
+    });
+  });
+
+  ms.querySelectorAll(".chip[data-val]").forEach(el => {
+    const val = el.dataset.val;
+    if (filters.fileType.has(val)) el.classList.add("on-blue");
+    el.addEventListener("click", () => toggleTypeFilter(el));
+  });
+
+  const ms_year = ms.querySelector("#yearSelect");
+  const ms_firm = ms.querySelector("#firmSelect");
+  if (ms_year) {
+    ms_year.value = filters.year;
+    ms_year.addEventListener("change", e => { filters.year = e.target.value; applyAndRender(); });
+  }
+  if (ms_firm) {
+    ms_firm.value = filters.firm;
+    ms_firm.addEventListener("change", e => { filters.firm = e.target.value; applyAndRender(); });
+  }
+
+  const ms_clear = ms.querySelector("#clearBtn");
+  if (ms_clear) ms_clear.addEventListener("click", clearFilters);
+}
+
+function syncSidebarState() {
+  // モバイルとデスクトップのチップ状態を同期（再レンダー）
+  document.querySelectorAll(".chip[data-filter]").forEach(chip => {
+    const fk   = chip.dataset.filter;
+    const tag  = chip.dataset.tag;
+    const onC  = fk==="structure"?"on-blue":fk==="design"?"on-green":"on-orange";
+    chip.classList.toggle(onC, filters[fk]?.has(tag)||false);
+  });
+}
+
+document.getElementById("sidebarOverlay").addEventListener("click", e => {
+  if (e.target === e.currentTarget) {
+    document.getElementById("sidebarOverlay").classList.remove("open");
+  }
+});
+
+/* =====================================================
+   フィルターリセット
+   ===================================================== */
+function clearFilters() {
+  filters.text = "";
+  filters.structure.clear();
+  filters.design.clear();
+  filters.theme.clear();
+  filters.year  = "";
+  filters.firm  = "";
+  filters.fileType.clear();
+  currentSort = "newest";
+
+  document.getElementById("searchInput").value = "";
+  document.getElementById("sortSelect").value  = "newest";
+  document.getElementById("yearSelect").value  = "";
+  document.getElementById("firmSelect").value  = "";
+
+  document.querySelectorAll(".chip.on-blue,.chip.on-green,.chip.on-orange").forEach(el =>
+    el.classList.remove("on-blue","on-green","on-orange"));
+
+  applyAndRender();
+}
+
+/* =====================================================
+   イベント
+   ===================================================== */
+document.getElementById("searchInput").addEventListener("input", e => {
+  filters.text = e.target.value.trim();
+  applyAndRender();
+});
+
+document.getElementById("sortSelect").addEventListener("change", e => {
+  currentSort = e.target.value;
+  applyAndRender();
+});
+
+document.getElementById("yearSelect").addEventListener("change", e => {
+  filters.year = e.target.value;
+  applyAndRender();
+});
+
+document.getElementById("firmSelect").addEventListener("change", e => {
+  filters.firm = e.target.value;
+  applyAndRender();
+});
+
+document.getElementById("clearBtn").addEventListener("click", clearFilters);
+
+document.getElementById("mobileFilterBtn").addEventListener("click", openMobileSidebar);
+
+document.querySelectorAll(".nav-tab").forEach(btn => {
+  btn.addEventListener("click", () => switchView(btn.dataset.view));
+});
+
+document.getElementById("compThemeSelect").addEventListener("change", e => {
+  renderComparisonView(e.target.value);
+});
+
+/* =====================================================
+   起動
+   ===================================================== */
+loadData();
+</script>
 </body>
 </html>
