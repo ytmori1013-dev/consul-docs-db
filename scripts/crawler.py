@@ -29,14 +29,16 @@ HEADERS = {
 }
 
 # はてなブックマーク カテゴリ（API名 → 表示名）
+# general は全カテゴリのトップを含むため最初に処理し、
+# 他カテゴリはそこにない固有エントリーを補完する
 HATENA_CATEGORIES = [
     "general",
+    "it",
     "social",
     "economics",
-    "life",
     "knowledge",
-    "it",
     "entertainment",
+    "life",
     "game",
     "fun",
 ]
