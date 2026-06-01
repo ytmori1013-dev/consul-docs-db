@@ -1,25 +1,46 @@
 name: METI Diagnostic
 on:
   workflow_dispatch:
+env:
+  GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+  GIST_ID: ${{ secrets.GIST_ID }}
 jobs:
   diag:
     runs-on: ubuntu-latest
     steps:
-      - name: METI疎通テスト
+      - name: METI疎通テスト（結果をGistに書き込む）
         run: |
+          pip install requests -q
           python3 - <<'PYEOF'
-          import requests
-          HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+          import requests, json, os
+
+          HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
           URL = "https://www.meti.go.jp/topic/data/e90622aj.html"
+          lines = []
           try:
               r = requests.get(URL, headers=HEADERS, timeout=30)
-              print(f"STATUS: {r.status_code}")
+              lines.append(f"STATUS: {r.status_code}")
+              lines.append(f"ENCODING: {r.apparent_encoding}")
               import re
               links = re.findall(r'href="([^"]*\.(ppt|pptx|pdf))"', r.text, re.IGNORECASE)
-              print(f"PPT/PDF links: {len(links)}")
-              for l in links[:5]:
-                  print(f"  {l[0]}")
-              print(f"BODY_FIRST_500: {r.text[:500]!r}")
+              lines.append(f"PPT/PDF links found: {len(links)}")
+              for l in links[:10]:
+                  lines.append(f"  LINK: {l[0]}")
+              lines.append(f"BODY_SAMPLE: {r.text[:800]!r}")
           except Exception as e:
-              print(f"ERROR: {e}")
+              lines.append(f"ERROR: {e}")
+
+          result = "\n".join(lines)
+          print(result)
+
+          # Gistに書き込む
+          gist_token = os.environ.get("GIST_TOKEN", "")
+          gist_id    = os.environ.get("GIST_ID", "")
+          if gist_token and gist_id:
+              resp = requests.patch(
+                  f"https://api.github.com/gists/{gist_id}",
+                  headers={"Authorization": f"token {gist_token}", "Accept": "application/vnd.github.v3+json"},
+                  json={"files": {"diag_result.txt": {"content": result}}}
+              )
+              print("Gist write:", resp.status_code)
           PYEOF
