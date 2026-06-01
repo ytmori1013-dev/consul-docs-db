@@ -77,13 +77,17 @@ def _save_gist_data(data: dict) -> bool:
 
     try:
         url = f"https://api.github.com/gists/{GIST_ID}"
-        payload = {
-            "files": {
-                DATA_FILENAME: {
-                    "content": json.dumps(data, ensure_ascii=False, indent=2)
-                }
+        # デバッグログも同じGistに保存する
+        from scripts.crawler import debug_log
+        files: dict = {
+            DATA_FILENAME: {
+                "content": json.dumps(data, ensure_ascii=False, indent=2)
             }
         }
+        if debug_log:
+            files["debug.txt"] = {"content": "\n".join(debug_log)}
+
+        payload = {"files": files}
         resp = requests.patch(url, headers=HEADERS, json=payload, timeout=30)
         resp.raise_for_status()
         logger.info("Gistへのデータ保存完了")
