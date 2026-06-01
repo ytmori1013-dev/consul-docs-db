@@ -1,14 +1,15 @@
-name: Buzz Tracker Crawl
+name: Consul Slides Crawl
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    # 毎週月曜 午前9時（UTC）に実行
+    - cron: "0 9 * * 1"
   workflow_dispatch:
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: リポジトリをチェックアウト
@@ -23,54 +24,57 @@ jobs:
       - name: 依存ライブラリをインストール
         run: pip install -r requirements.txt
 
-      - name: はてなAPI疎通確認
-        run: |
-          python3 - <<'PYEOF'
-          import requests, sys
-          HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; BuzzTracker/1.0)"}
-          urls = [
-              "https://b.hatena.ne.jp/hotentry/it.json",
-              "https://b.hatena.ne.jp/api/ipad.hotentry.json?target=it",
-              "https://b.hatena.ne.jp/hotentry/it.rss",
-          ]
-          for url in urls:
-              try:
-                  r = requests.get(url, headers=HEADERS, timeout=10)
-                  print(f"[{r.status_code}] {url}")
-                  print(f"  Content-Type: {r.headers.get('Content-Type','')}")
-                  print(f"  Body先頭100: {r.text[:100]!r}")
-              except Exception as e:
-                  print(f"[ERR] {url}: {e}")
-          PYEOF
-
-      - name: クロール・フィルタ・分類・Gist同期
+      - name: クロール・タグ付け・Gist同期
         env:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
           GIST_ID: ${{ secrets.GIST_ID }}
         run: |
           python3 - <<'PYEOF'
           import json, sys, logging
-          logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+          logging.basicConfig(
+              level=logging.INFO,
+              format="%(asctime)s [%(levelname)s] %(message)s"
+          )
 
-          from scripts.crawler import fetch_buzz_tweets
-          tweets = fetch_buzz_tweets()
-          print(f'クロール完了: {len(tweets)} 件', flush=True)
+          # ── Step 1: 既存URLを取得して重複排除に使用 ──
+          existing_urls = set()
+          try:
+              from scripts.gist_sync import load_existing_urls
+              existing_urls = load_existing_urls()
+              print(f"既存URL読み込み完了: {len(existing_urls)} 件", flush=True)
+          except Exception as e:
+              print(f"既存URL読み込みエラー（空セットで継続）: {e}", flush=True)
 
-          from scripts.gist_sync import load_author_history
-          author_history = load_author_history()
+          # ── Step 2: クロール ──
+          new_entries = []
+          try:
+              from scripts.crawler import crawl
+              new_entries = crawl(existing_urls)
+              print(f"クロール完了: 新規 {len(new_entries)} 件", flush=True)
+          except Exception as e:
+              print(f"クロールエラー: {e}", flush=True)
 
-          from scripts.filter import apply_filters
-          filtered_tweets, updated_history = apply_filters(tweets, author_history)
-          print(f'フィルタ完了: {len(filtered_tweets)} 件', flush=True)
+          if not new_entries:
+              print("新規エントリーなし。処理を終了します。", flush=True)
+              sys.exit(0)
 
-          from scripts.classifier import classify_tweets_batch
-          classified_tweets = classify_tweets_batch(filtered_tweets)
-          print(f'分類完了: {len(classified_tweets)} 件', flush=True)
+          # ── Step 3: タグ付け ──
+          tagged_entries = new_entries
+          try:
+              from scripts.tagger import tag_entries
+              tagged_entries = tag_entries(new_entries)
+              print(f"タグ付け完了: {len(tagged_entries)} 件", flush=True)
+          except Exception as e:
+              print(f"タグ付けエラー（タグなしで保存）: {e}", flush=True)
 
-          from scripts.gist_sync import sync
-          success = sync(classified_tweets, updated_history)
-          if not success:
-              print('Gist同期に失敗しました', flush=True)
-              sys.exit(1)
-          print('Gist同期完了', flush=True)
+          # ── Step 4: Gist同期 ──
+          try:
+              from scripts.gist_sync import sync
+              success = sync(tagged_entries)
+              if success:
+                  print("Gist同期完了", flush=True)
+              else:
+                  print("Gist同期に失敗しました（トークン・ID設定を確認してください）", flush=True)
+          except Exception as e:
+              print(f"Gist同期エラー: {e}", flush=True)
           PYEOF

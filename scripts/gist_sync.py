@@ -1,5 +1,5 @@
 """
-GitHub Gistとデータを同期するモジュール
+GitHub Gistとスライドデータを同期するモジュール
 
 環境変数:
 - GIST_TOKEN: GitHub Personal Access Token
@@ -8,9 +8,7 @@ GitHub Gistとデータを同期するモジュール
 import json
 import logging
 import os
-import sys
 from datetime import datetime, timezone
-from typing import Any
 
 import requests
 
@@ -18,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 GIST_TOKEN = os.environ.get("GIST_TOKEN", "")
 GIST_ID = os.environ.get("GIST_ID", "")
-DATA_FILENAME = "data.json"
-MAX_TWEETS = 1000  # 保存する最大ツイート数
+DATA_FILENAME = "slides.json"
+MAX_SLIDES = 2000  # 保存する最大件数
 
 HEADERS = {
     "Authorization": f"token {GIST_TOKEN}",
@@ -48,13 +46,12 @@ def _load_gist_data() -> dict:
         if not raw_url:
             return _empty_data()
 
-        raw_resp = requests.get(raw_url, timeout=15)
+        raw_resp = requests.get(raw_url, timeout=30)
         raw_resp.raise_for_status()
         data = raw_resp.json()
-        logger.info(
-            f"Gistからデータ読み込み完了: {len(data.get('tweets', []))} 件"
-        )
+        logger.info(f"Gistからデータ読み込み完了: {len(data.get('slides', []))} 件")
         return data
+
     except Exception as e:
         logger.error(f"Gistデータ読み込みエラー: {e}")
         return _empty_data()
@@ -64,8 +61,8 @@ def _empty_data() -> dict:
     """空のデータ構造を返す"""
     return {
         "last_updated": "",
-        "tweets": [],
-        "author_history": {},
+        "total_count": 0,
+        "slides": [],
     }
 
 
@@ -77,133 +74,90 @@ def _save_gist_data(data: dict) -> bool:
 
     try:
         url = f"https://api.github.com/gists/{GIST_ID}"
-        # デバッグログも同じGistに保存する
-        from scripts.crawler import debug_log
-        files: dict = {
-            DATA_FILENAME: {
-                "content": json.dumps(data, ensure_ascii=False, indent=2)
+        payload = {
+            "files": {
+                DATA_FILENAME: {
+                    "content": json.dumps(data, ensure_ascii=False, indent=2)
+                }
             }
         }
-        if debug_log:
-            files["debug.txt"] = {"content": "\n".join(debug_log)}
-
-        payload = {"files": files}
-        resp = requests.patch(url, headers=HEADERS, json=payload, timeout=30)
+        resp = requests.patch(url, headers=HEADERS, json=payload, timeout=60)
         resp.raise_for_status()
-        logger.info("Gistへのデータ保存完了")
+        logger.info(f"Gistへのデータ保存完了: {data['total_count']} 件")
         return True
+
     except Exception as e:
         logger.error(f"Gistデータ保存エラー: {e}")
         return False
 
 
-def merge_tweets(
-    existing_tweets: list[dict], new_tweets: list[dict]
-) -> list[dict]:
+def merge_slides(existing_slides: list, new_slides: list) -> list:
     """
-    既存ツイートと新規ツイートをtweetIdで重複排除してマージする。
-    新しいものが先頭になるよう並び替え、MAX_TWEETS件に制限する。
+    既存スライドと新規スライドをidで重複排除してマージする。
+    新着優先でソートし MAX_SLIDES 件に制限する（古いものから削除）。
     """
-    merged: dict[str, dict] = {}
+    merged: dict = {}
 
-    # 既存を先に追加
-    for tweet in existing_tweets:
-        tid = tweet.get("tweet_id")
-        if tid:
-            merged[tid] = tweet
+    for slide in existing_slides:
+        sid = slide.get("id")
+        if sid:
+            merged[sid] = slide
 
-    # 新規で上書き（最新データ優先）
-    for tweet in new_tweets:
-        tid = tweet.get("tweet_id")
-        if tid:
-            merged[tid] = tweet
+    # 新規データで上書き（最新情報優先）
+    for slide in new_slides:
+        sid = slide.get("id")
+        if sid:
+            merged[sid] = slide
 
-    # タイムスタンプで降順ソート（取得できない場合はtweet_idで降順）
     result = sorted(
         merged.values(),
-        key=lambda t: (t.get("tweet_id", "0"),),
+        key=lambda s: s.get("crawled_at", ""),
         reverse=True,
     )
 
-    # 最新MAX_TWEETS件に絞る
-    if len(result) > MAX_TWEETS:
-        result = result[:MAX_TWEETS]
-        logger.info(f"ツイート数をMAX_TWEETS={MAX_TWEETS}件に制限しました。")
+    if len(result) > MAX_SLIDES:
+        logger.info(f"スライド数を MAX_SLIDES={MAX_SLIDES} 件に制限しました。")
+        result = result[:MAX_SLIDES]
 
     return result
 
 
-def merge_author_history(
-    existing_history: dict[str, dict], new_history: dict[str, dict]
-) -> dict[str, dict]:
+def sync(new_slides: list) -> bool:
     """
-    author_historyをマージする。新しいデータで上書き。
-    """
-    merged = dict(existing_history)
-    merged.update(new_history)
-    return merged
-
-
-def sync(new_tweets: list[dict], updated_author_history: dict[str, dict]) -> bool:
-    """
-    新規ツイートとauthor_historyをGistと同期する。
+    新規スライドデータをGistと同期する。
 
     Args:
-        new_tweets: フィルタ・分類済みの新規ツイートリスト
-        updated_author_history: フィルタ処理で更新されたauthor_history
+        new_slides: タグ付け済みの新規スライドリスト
 
     Returns:
         保存成功: True / 失敗: False
     """
-    # 既存データを読み込む
     existing_data = _load_gist_data()
+    merged_slides = merge_slides(existing_data.get("slides", []), new_slides)
 
-    # マージ
-    merged_tweets = merge_tweets(existing_data.get("tweets", []), new_tweets)
-    merged_history = merge_author_history(
-        existing_data.get("author_history", {}), updated_author_history
-    )
-
-    # 保存データ構造を作成
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
     new_data = {
         "last_updated": now,
-        "tweets": merged_tweets,
-        "author_history": merged_history,
+        "total_count": len(merged_slides),
+        "slides": merged_slides,
     }
 
-    logger.info(
-        f"同期準備完了: 新規 {len(new_tweets)} 件, "
-        f"合計 {len(merged_tweets)} 件"
-    )
-
+    logger.info(f"同期準備完了: 新規 {len(new_slides)} 件, 合計 {len(merged_slides)} 件")
     return _save_gist_data(new_data)
 
 
-def load_author_history() -> dict[str, dict]:
-    """
-    Gistから既存のauthor_historyを読み込む。
-    フィルタ処理で使用するために事前に呼び出す。
-    """
+def load_existing_urls() -> set:
+    """既存データのURL一覧を返す（クローラーの重複排除用）"""
     data = _load_gist_data()
-    history = data.get("author_history", {})
-    logger.info(f"author_history読み込み: {len(history)} アカウント")
-    return history
+    urls = {slide.get("url", "") for slide in data.get("slides", [])}
+    urls.discard("")
+    logger.info(f"既存URL読み込み: {len(urls)} 件")
+    return urls
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-    )
-
-    # パイプラインからの入力を想定
-    try:
-        input_data = json.load(sys.stdin)
-        tweets = input_data.get("tweets", [])
-        author_history = input_data.get("author_history", {})
-    except Exception as e:
-        logger.error(f"入力データの読み込みエラー: {e}")
-        sys.exit(1)
-
-    success = sync(tweets, author_history)
+    import sys
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    slides = json.load(sys.stdin)
+    success = sync(slides)
     sys.exit(0 if success else 1)
