@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buzz Tracker</title>
+  <style>
+    /* ===== CSS変数・リセット ===== */
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #242736;
+      --border: #2e3147;
+      --text: #e8eaf0;
+      --text-sub: #8b90a7;
+      --accent: #6c8fff;
+      --accent-hover: #8aa4ff;
+      --bookmark-active: #ffd54f;
+
+      /* カテゴリカラー */
+      --cat-ai:     #6c8fff;
+      --cat-biz:    #4caf82;
+      --cat-poli:   #e06c6c;
+      --cat-ent:    #c97fd4;
+      --cat-sports: #ff9f5a;
+      --cat-sci:    #4fc3c3;
+      --cat-life:   #82c96c;
+      --cat-other:  #8b90a7;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ===== ヘッダー ===== */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 56px;
+    }
+    .logo {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent);
+      text-decoration: none;
+      letter-spacing: -0.5px;
+      white-space: nowrap;
+    }
+    .logo span { color: var(--text); }
+    .header-meta {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--text-sub);
+      white-space: nowrap;
+    }
+
+    /* ===== ナビゲーションタブ ===== */
+    .nav-wrapper {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .nav-wrapper::-webkit-scrollbar { display: none; }
+    .nav {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      padding: 0 20px;
+      gap: 4px;
+    }
+    .nav-tab {
+      padding: 10px 14px;
+      border: none;
+      background: none;
+      color: var(--text-sub);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .nav-tab:hover { color: var(--text); }
+    .nav-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ===== メインレイアウト ===== */
+    .main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* ===== ローディング・エラー ===== */
+    .loading, .error-msg {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-sub);
+    }
+    .error-msg { color: #e06c6c; }
+    .spinner {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== ツイートカードグリッド ===== */
+    .cards-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    /* ===== ツイートカード ===== */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      transition: border-color 0.15s;
+    }
+    .card:hover { border-color: #4a4f6a; }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--surface2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .author-info { flex: 1; min-width: 0; }
+    .author-name {
+      font-weight: 600;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .author-id {
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+    .bookmark-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 20px;
+      color: var(--text-sub);
+      padding: 2px 4px;
+      border-radius: 6px;
+      transition: color 0.15s, background 0.15s;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .bookmark-btn:hover { background: var(--surface2); color: var(--bookmark-active); }
+    .bookmark-btn.bookmarked { color: var(--bookmark-active); }
+
+    .card-text {
+      font-size: 14px;
+      line-height: 1.65;
+      margin-bottom: 12px;
+      word-break: break-word;
+      color: var(--text);
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 13px;
+      color: var(--text-sub);
+    }
+    .stat-icon { font-size: 14px; }
+    .stat-num { font-weight: 600; color: var(--text); }
+    .category-badge {
+      margin-left: auto;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    /* カテゴリバッジ配色 */
+    .cat-ai     { background: rgba(108,143,255,.18); color: var(--cat-ai); }
+    .cat-biz    { background: rgba(76,175,130,.18);  color: var(--cat-biz); }
+    .cat-poli   { background: rgba(224,108,108,.18); color: var(--cat-poli); }
+    .cat-ent    { background: rgba(201,127,212,.18); color: var(--cat-ent); }
+    .cat-sports { background: rgba(255,159,90,.18);  color: var(--cat-sports); }
+    .cat-sci    { background: rgba(79,195,195,.18);  color: var(--cat-sci); }
+    .cat-life   { background: rgba(130,201,108,.18); color: var(--cat-life); }
+    .cat-other  { background: rgba(139,144,167,.18); color: var(--cat-other); }
+
+    /* ===== 空状態 ===== */
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-sub);
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+    /* ===== レコメンドバナー ===== */
+    .recommend-banner {
+      background: linear-gradient(135deg, #1e2236, #242736);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: var(--text-sub);
+      display: none;
+    }
+    .recommend-banner.visible { display: block; }
+    .recommend-banner strong { color: var(--text); }
+    .recommend-cats {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .recommend-cat {
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .recommend-cat:hover { opacity: 0.75; }
+
+    /* ===== ブックマークページ ===== */
+    .bookmark-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .bookmark-count {
+      font-size: 13px;
+      color: var(--text-sub);
+    }
+    .clear-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-sub);
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .clear-btn:hover { border-color: #e06c6c; color: #e06c6c; }
+
+    /* ===== レスポンシブ ===== */
+    @media (max-width: 600px) {
+      .header-inner { height: 48px; }
+      .logo { font-size: 17px; }
+      .main { padding: 12px; }
+      .card { padding: 12px; }
+      .nav-tab { padding: 9px 10px; font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <a href="#" class="logo">⚡ Buzz<span>Tracker</span></a>
+    <div class="header-meta" id="last-updated">読み込み中…</div>
+  </div>
+</header>
+
+<div class="nav-wrapper">
+  <nav class="nav" id="nav-tabs">
+    <button class="nav-tab active" data-view="all">すべて</button>
+    <button class="nav-tab" data-view="AI・テクノロジー">AI・テクノロジー</button>
+    <button class="nav-tab" data-view="ビジネス・キャリア">ビジネス・キャリア</button>
+    <button class="nav-tab" data-view="政治・社会">政治・社会</button>
+    <button class="nav-tab" data-view="エンタメ・文化">エンタメ・文化</button>
+    <button class="nav-tab" data-view="スポーツ">スポーツ</button>
+    <button class="nav-tab" data-view="科学・教育">科学・教育</button>
+    <button class="nav-tab" data-view="生活・健康">生活・健康</button>
+    <button class="nav-tab" data-view="その他">その他</button>
+    <button class="nav-tab" data-view="bookmarks">🔖 ブックマーク</button>
+  </nav>
+</div>
+
+<main class="main">
+  <div id="recommend-banner" class="recommend-banner">
+    <strong>あなたへのおすすめ</strong>（ブックマークの傾向より）
+    <div class="recommend-cats" id="recommend-cats"></div>
+  </div>
+  <div id="content"></div>
+</main>
+
+<script>
+// ===== 設定 =====
+// ※ご自身のGistに合わせて書き換えてください
+const GIST_USERNAME = "ytmori1013-dev";
+const GIST_ID       = "3ee194081ef79b74ebd331f4052bc354";
+const GIST_RAW_URL  = `https://gist.githubusercontent.com/${GIST_USERNAME}/${GIST_ID}/raw/data.json`;
+
+// ===== カテゴリ → CSSクラス マッピング =====
+const CATEGORY_CLASS = {
+  "AI・テクノロジー": "cat-ai",
+  "ビジネス・キャリア": "cat-biz",
+  "政治・社会": "cat-poli",
+  "エンタメ・文化": "cat-ent",
+  "スポーツ": "cat-sports",
+  "科学・教育": "cat-sci",
+  "生活・健康": "cat-life",
+  "その他": "cat-other",
+};
+
+// ===== カテゴリ → アクセントカラー =====
+const CATEGORY_COLOR = {
+  "AI・テクノロジー": "#6c8fff",
+  "ビジネス・キャリア": "#4caf82",
+  "政治・社会": "#e06c6c",
+  "エンタメ・文化": "#c97fd4",
+  "スポーツ": "#ff9f5a",
+  "科学・教育": "#4fc3c3",
+  "生活・健康": "#82c96c",
+  "その他": "#8b90a7",
+};
+
+// ===== 状態 =====
+let allTweets = [];
+let currentView = "all";
+const STORAGE_KEY = "buzz_tracker_bookmarks";
+
+// ===== ブックマーク操作 =====
+function getBookmarks() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function toggleBookmark(tweetId, tweetData) {
+  const bm = getBookmarks();
+  if (bm[tweetId]) {
+    delete bm[tweetId];
+  } else {
+    bm[tweetId] = tweetData;
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(bm));
+  return !!bm[tweetId];
+}
+
+function isBookmarked(tweetId) {
+  return !!getBookmarks()[tweetId];
+}
+
+// ===== 数値フォーマット =====
+function fmtNum(n) {
+  if (n == null) return "-";
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+  return n.toString();
+}
+
+// ===== アバター（名前の頭文字）=====
+function avatarChar(author) {
+  return (author || "?").charAt(0).toUpperCase();
+}
+
+// ===== ツイートカードHTML生成 =====
+function buildCard(tweet) {
+  const bmd = isBookmarked(tweet.tweet_id);
+  const catClass = CATEGORY_CLASS[tweet.category] || "cat-other";
+  const engText = tweet.engagement_rate != null
+    ? `<span class="stat"><span class="stat-icon">📊</span><span class="stat-num">${(tweet.engagement_rate * 100).toFixed(1)}%</span></span>`
+    : "";
+
+  return `
+    <div class="card" data-id="${tweet.tweet_id}">
+      <div class="card-header">
+        <div class="avatar">${avatarChar(tweet.author)}</div>
+        <div class="author-info">
+          <div class="author-name">${escHtml(tweet.author || tweet.author_id)}</div>
+          <div class="author-id">@${escHtml(tweet.author_id)}
+            ${tweet.followers_count ? `<span style="margin-left:8px">フォロワー ${fmtNum(tweet.followers_count)}</span>` : ""}
+          </div>
+        </div>
+        <button class="bookmark-btn ${bmd ? "bookmarked" : ""}"
+                data-id="${tweet.tweet_id}"
+                title="${bmd ? "ブックマーク解除" : "ブックマーク"}">
+          ${bmd ? "🔖" : "🔖"}
+        </button>
+      </div>
+      <div class="card-text">${escHtml(tweet.text)}</div>
+      <div class="card-footer">
+        <span class="stat"><span class="stat-icon">❤️</span><span class="stat-num">${fmtNum(tweet.likes)}</span></span>
+        <span class="stat"><span class="stat-icon">🔁</span><span class="stat-num">${fmtNum(tweet.retweets)}</span></span>
+        ${engText}
+        <span class="category-badge ${catClass}">${tweet.category || "その他"}</span>
+      </div>
+    </div>`;
+}
+
+function escHtml(str) {
+  return (str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// ===== レコメンドバナー更新 =====
+function updateRecommend() {
+  const bm = getBookmarks();
+  const bmList = Object.values(bm);
+  const banner = document.getElementById("recommend-banner");
+  const catsEl = document.getElementById("recommend-cats");
+
+  if (bmList.length < 2) {
+    banner.classList.remove("visible");
+    return;
+  }
+
+  // カテゴリの出現頻度を集計
+  const freq = {};
+  bmList.forEach(t => {
+    const c = t.category || "その他";
+    freq[c] = (freq[c] || 0) + 1;
+  });
+
+  const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+  catsEl.innerHTML = sorted.map(([cat]) => {
+    const color = CATEGORY_COLOR[cat] || "#8b90a7";
+    return `<button class="recommend-cat" style="background:${color}22;color:${color}"
+              onclick="switchView('${cat}')">${cat}</button>`;
+  }).join("");
+
+  banner.classList.add("visible");
+}
+
+// ===== メインコンテンツ描画 =====
+function renderView(view) {
+  currentView = view;
+  const content = document.getElementById("content");
+
+  if (view === "bookmarks") {
+    renderBookmarks(content);
+    updateRecommend();
+    return;
+  }
+
+  updateRecommend();
+
+  const tweets = view === "all"
+    ? allTweets
+    : allTweets.filter(t => t.category === view);
+
+  if (!tweets.length) {
+    content.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div>このカテゴリにはまだデータがありません</div>`;
+    return;
+  }
+
+  content.innerHTML = `<div class="cards-grid">${tweets.map(buildCard).join("")}</div>`;
+  attachBookmarkListeners(content);
+}
+
+function renderBookmarks(container) {
+  const bm = getBookmarks();
+  const tweets = Object.values(bm);
+
+  const headerHtml = `
+    <div class="bookmark-header">
+      <span class="bookmark-count">ブックマーク ${tweets.length} 件</span>
+      ${tweets.length ? `<button class="clear-btn" id="clear-all-btn">すべて削除</button>` : ""}
+    </div>`;
+
+  if (!tweets.length) {
+    container.innerHTML = headerHtml + `<div class="empty"><div class="empty-icon">🔖</div>ブックマークはまだありません</div>`;
+    return;
+  }
+
+  container.innerHTML = headerHtml + `<div class="cards-grid">${tweets.map(buildCard).join("")}</div>`;
+  attachBookmarkListeners(container);
+
+  const clearBtn = document.getElementById("clear-all-btn");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      if (confirm("すべてのブックマークを削除しますか？")) {
+        localStorage.removeItem(STORAGE_KEY);
+        renderBookmarks(container);
+        updateRecommend();
+      }
+    });
+  }
+}
+
+// ===== ブックマークボタンのイベント付与 =====
+function attachBookmarkListeners(container) {
+  container.querySelectorAll(".bookmark-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      const card = btn.closest(".card");
+      const tweet = allTweets.find(t => t.tweet_id === id)
+        || Object.values(getBookmarks()).find(t => t.tweet_id === id);
+
+      if (!tweet) return;
+
+      const nowBookmarked = toggleBookmark(id, tweet);
+      btn.classList.toggle("bookmarked", nowBookmarked);
+      btn.title = nowBookmarked ? "ブックマーク解除" : "ブックマーク";
+
+      // ブックマークページ表示中なら再描画
+      if (currentView === "bookmarks") {
+        renderBookmarks(document.getElementById("content"));
+        updateRecommend();
+      }
+    });
+  });
+}
+
+// ===== タブ切り替え =====
+function switchView(view) {
+  document.querySelectorAll(".nav-tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.view === view);
+  });
+  renderView(view);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// ===== データ取得 =====
+async function loadData() {
+  const content = document.getElementById("content");
+  content.innerHTML = `<div class="loading"><div class="spinner"></div><br>データを読み込み中…</div>`;
+
+  try {
+    const res = await fetch(GIST_RAW_URL + "?_=" + Date.now());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    allTweets = data.tweets || [];
+
+    // 最終更新時刻
+    if (data.last_updated) {
+      const d = new Date(data.last_updated + "Z");
+      const fmt = new Intl.DateTimeFormat("ja-JP", {
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo",
+      });
+      document.getElementById("last-updated").textContent = "最終更新: " + fmt.format(d);
+    } else {
+      document.getElementById("last-updated").textContent = "";
+    }
+
+    renderView(currentView);
+  } catch (err) {
+    content.innerHTML = `<div class="error-msg">⚠️ データの読み込みに失敗しました<br><small>${err.message}</small><br><br><small>GIST_USERNAME / GIST_ID が正しく設定されているか確認してください。</small></div>`;
+    document.getElementById("last-updated").textContent = "";
+    console.error("データ取得エラー:", err);
+  }
+}
+
+// ===== 初期化 =====
+document.addEventListener("DOMContentLoaded", () => {
+  // タブクリックイベント
+  document.getElementById("nav-tabs").addEventListener("click", e => {
+    const tab = e.target.closest(".nav-tab");
+    if (!tab) return;
+    switchView(tab.dataset.view);
+  });
+
+  loadData();
+});
+</script>
+
+</body>
+</html>
