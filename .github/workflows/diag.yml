@@ -1,0 +1,25 @@
+name: METI Diagnostic
+on:
+  workflow_dispatch:
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: METI疎通テスト
+        run: |
+          python3 - <<'PYEOF'
+          import requests
+          HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+          URL = "https://www.meti.go.jp/topic/data/e90622aj.html"
+          try:
+              r = requests.get(URL, headers=HEADERS, timeout=30)
+              print(f"STATUS: {r.status_code}")
+              import re
+              links = re.findall(r'href="([^"]*\.(ppt|pptx|pdf))"', r.text, re.IGNORECASE)
+              print(f"PPT/PDF links: {len(links)}")
+              for l in links[:5]:
+                  print(f"  {l[0]}")
+              print(f"BODY_FIRST_500: {r.text[:500]!r}")
+          except Exception as e:
+              print(f"ERROR: {e}")
+          PYEOF
