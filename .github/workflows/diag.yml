@@ -8,59 +8,40 @@ jobs:
   diag:
     runs-on: ubuntu-latest
     steps:
-      - name: iframe/scriptソース調査
+      - name: iframe source investigation
         run: |
           pip install requests beautifulsoup4 -q
-          python3 - <<'PYEOF'
+          python3 << 'PYEOF'
           import requests, os, re
           from bs4 import BeautifulSoup
-
-          HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+          HEADERS = {"User-Agent": "Mozilla/5.0"}
+          r = requests.get("https://www.meti.go.jp/topic/data/e90622aj.html", headers=HEADERS, timeout=30)
+          r.encoding = r.apparent_encoding or "utf-8"
+          soup = BeautifulSoup(r.text, "html.parser")
           lines = []
-
-          def fetch(url):
-              r = requests.get(url, headers=HEADERS, timeout=30)
-              r.encoding = r.apparent_encoding or 'utf-8'
-              return r
-
-          # メインページ
-          r = fetch("https://www.meti.go.jp/topic/data/e90622aj.html")
-          soup = BeautifulSoup(r.text, 'html.parser')
-
-          # iframe
-          iframes = soup.find_all('iframe')
+          iframes = soup.find_all("iframe")
           lines.append(f"iframes: {len(iframes)}")
           for f in iframes:
-              lines.append(f"  src={f.get('src','')}")
-
-          # script src
-          scripts = [s.get('src','') for s in soup.find_all('script', src=True)]
-          lines.append(f"scripts: {len(scripts)}")
+              lines.append(f"  iframe src={f.get('src','')} data-src={f.get('data-src','')}")
+          scripts = soup.find_all("script")
+          lines.append(f"script tags: {len(scripts)}")
           for s in scripts:
-              lines.append(f"  {s}")
-
-          # 全HTMLから http含むリンクを抄出
-          all_urls = re.findall(r'https?://[^\s"\'>]+', r.text)
-          lines.append(f"http URLs in HTML: {len(all_urls)}")
-          for u in all_urls[:30]:
+              src = s.get("src", "")
+              if src:
+                  lines.append(f"  script src={src}")
+              txt = s.string or ""
+              if any(k in txt for k in ["iframe","embed","src","url","json","api"]):
+                  lines.append(f"  inline script snippet: {txt[:300]}")
+          all_urls = re.findall(r'https?://[^\s"\'<>]+', r.text)
+          lines.append(f"http urls in html: {len(all_urls)}")
+          for u in sorted(set(all_urls))[:40]:
               lines.append(f"  {u}")
-
-          # JavaScript内のデータソースURLを探す
-          js_data = re.findall(r'["\']([^"\']*(json|api|data|report)[^"\']*)["\']\
-', r.text, re.I)
-          lines.append(f"potential data URLs in JS: {len(js_data)}")
-          for u in js_data[:10]:
-              lines.append(f"  {u[0]}")
-
-          # 全HTML (4000文字)
-          lines.append("\n--- full html (4000 chars) ---")
-          lines.append(r.text[:4000])
-
+          lines.append("--- html 5000 chars ---")
+          lines.append(r.text[:5000])
           result = "\n".join(lines)
           print(result)
-
           gist_token = os.environ.get("GIST_TOKEN","")
-          gist_id    = os.environ.get("GIST_ID","")
+          gist_id = os.environ.get("GIST_ID","")
           if gist_token and gist_id:
               resp = requests.patch(
                   f"https://api.github.com/gists/{gist_id}",
