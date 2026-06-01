@@ -121,7 +121,7 @@ def _make_entry(title: str, file_url: str, context_text: str = "") -> dict:
     }
 
 
-def _get(url: str, timeout: int = 20) -> Optional[requests.Response]:
+def _get(url: str, timeout: int = 8) -> Optional[requests.Response]:
     try:
         r = requests.get(url, headers=HEADERS, timeout=timeout)
         r.raise_for_status()
@@ -230,13 +230,18 @@ def _crawl_meti_pages(existing_urls: set) -> list:
 
 def _crawl_ndl(existing_urls: set, max_records: int = 100) -> list:
     """
-    国立国会図書館 SRU API で経産省委託調査報告書を検索し
-    デジタルコレクション PDF リンクを取得する。
+    国立国会図書館 SRU API で経産省委託調査報告書を検索する。
+
+    recordData は HTML エンコードされた文字列として返るため、
+    テキストを再パースして rdf:about の URL とタイトルを抽出する。
     """
+    DCNDL = "http://ndl.go.jp/dcndl/terms/"
+    DCTERMS = "http://purl.org/dc/terms/"
+    DC = "http://purl.org/dc/elements/1.1/"
+    RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+
     results = []
-    query = (
-        'creator="経済産業省" AND title="委託調査"'
-    )
+    query = 'creator="経済産業省" AND title="委託調査"'
     params = {
         "operation": "searchRetrieve",
         "query": query,
@@ -248,13 +253,7 @@ def _crawl_ndl(existing_urls: set, max_records: int = 100) -> list:
         r = requests.get(NDL_SRU_URL, params=params, headers=HEADERS, timeout=30)
         r.raise_for_status()
         root = ET.fromstring(r.content)
-
-        ns = {
-            "srw": "http://www.loc.gov/zing/srw/",
-            "dc": "http://purl.org/dc/elements/1.1/",
-            "dcndl": "http://ndl.go.jp/dcndl/terms/",
-            "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
-        }
+        ns = {"srw": "http://www.loc.gov/zing/srw/"}
 
         for record in root.findall(".//srw:record", ns):
             try:
@@ -262,18 +261,63 @@ def _crawl_ndl(existing_urls: set, max_records: int = 100) -> list:
                 if rec_data is None:
                     continue
 
-                title_el = rec_data.find(".//{http://purl.org/dc/elements/1.1/}title")
-                title = title_el.text.strip() if title_el is not None else ""
+                # recordData の text は HTML エンコードされた RDF/XML 文字列
+                inner_text = (rec_data.text or "").strip()
+                if not inner_text:
+                    continue
+                inner = ET.fromstring(inner_text)
 
-                # 識別子から NDL デジタルコレクション URL を探す
-                for id_el in rec_data.findall(".//{http://purl.org/dc/elements/1.1/}identifier"):
-                    id_text = (id_el.text or "").strip()
-                    if "dl.ndl.go.jp" in id_text or "ndl.go.jp" in id_text:
-                        file_url = id_text
-                        if file_url not in existing_urls:
-                            results.append(_make_entry(title, file_url))
-                            existing_urls.add(file_url)
-                        break
+                # カタログ URL を BibAdminResource の rdf:about から取得
+                bib_admin = inner.find(f"{{{DCNDL}}}BibAdminResource")
+                if bib_admin is None:
+                    continue
+                entry_url = bib_admin.get(f"{{{RDF}}}about", "")
+                if not entry_url or entry_url in existing_urls:
+                    continue
+
+                bib_res = inner.find(f"{{{DCNDL}}}BibResource")
+                title = ""
+                published_date = ""
+                creator = ""
+                series_title = ""
+
+                if bib_res is not None:
+                    # タイトル（dcterms:title 優先、なければ dc:title/rdf:value）
+                    t = bib_res.find(f"{{{DCTERMS}}}title")
+                    if t is not None:
+                        title = (t.text or "").strip()
+                    if not title:
+                        dc_t = bib_res.find(f"{{{DC}}}title")
+                        if dc_t is not None:
+                            rdf_v = dc_t.find(f".//{{{RDF}}}value")
+                            if rdf_v is not None:
+                                title = (rdf_v.text or "").strip()
+
+                    # 発行日
+                    d = bib_res.find(f"{{{DCTERMS}}}issued")
+                    if d is not None:
+                        published_date = (d.text or "").strip()
+
+                    # 作成者（ファーム名抽出に使用）
+                    c = bib_res.find(f"{{{DC}}}creator")
+                    if c is not None:
+                        creator = (c.text or "").strip()
+
+                    # シリーズタイトル（年度抽出に使用）
+                    s = bib_res.find(f"{{{DCNDL}}}seriesTitle")
+                    if s is not None:
+                        rdf_v = s.find(f".//{{{RDF}}}value")
+                        if rdf_v is not None:
+                            series_title = (rdf_v.text or "").strip()
+
+                context = creator + " " + series_title
+                entry = _make_entry(title or entry_url, entry_url, context)
+                entry["published_date"] = published_date
+                entry["file_type"] = "html"  # NDL カタログページ
+
+                results.append(entry)
+                existing_urls.add(entry_url)
+
             except Exception:
                 continue
 
@@ -315,14 +359,13 @@ def crawl(existing_urls: Optional[set] = None) -> list:
     except Exception as e:
         logger.error(f"戦略2 エラー: {e}")
 
-    # 戦略3（戦略1・2で十分取れた場合はスキップ）
-    if len(all_results) < 10:
-        try:
-            r3 = _crawl_ndl(existing_urls)
-            all_results.extend(r3)
-            logger.info(f"[戦略3 NDL API] {len(r3)} 件")
-        except Exception as e:
-            logger.error(f"戦略3 エラー: {e}")
+    # 戦略3: NDL（METI が取れない場合も含め常に実行）
+    try:
+        r3 = _crawl_ndl(existing_urls)
+        all_results.extend(r3)
+        logger.info(f"[戦略3 NDL API] {len(r3)} 件")
+    except Exception as e:
+        logger.error(f"戦略3 エラー: {e}")
 
     logger.info(f"クロール完了: 合計 {len(all_results)} 件（新規）")
     return all_results
