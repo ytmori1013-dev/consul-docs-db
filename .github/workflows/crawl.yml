@@ -18,7 +18,7 @@ on:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: リポジトリをチェックアウト
@@ -35,6 +35,9 @@ jobs:
 
       - name: Playwright ブラウザをインストール
         run: playwright install chromium --with-deps
+
+      - name: システム依存ライブラリをインストール（サムネイル生成用）
+        run: sudo apt-get install -y libreoffice poppler-utils
 
       - name: クロール・タグ付け・Gist同期
         env:
@@ -106,3 +109,21 @@ jobs:
           except Exception as e:
               print(f"Gist同期エラー: {e}", flush=True)
           PYEOF
+
+      - name: サムネイル生成（最大20件・実ファイルURLがある場合のみ）
+        env:
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: ${{ secrets.GIST_ID }}
+        run: python3 scripts/pptx_to_image.py
+
+      - name: サムネイルをコミット・プッシュ
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/thumbnails/ || true
+          if git diff --cached --quiet; then
+            echo "サムネイル変更なし。コミットをスキップ。"
+          else
+            git commit -m "chore: サムネイル自動生成 [skip ci]"
+            git push
+          fi

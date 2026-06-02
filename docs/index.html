@@ -3,470 +3,158 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ConsulSlides — 官公庁委託報告書 学習DB</title>
+  <title>ConsulSlides — 経産省・防衛省 委託調査報告書 学習DB</title>
   <style>
-    /* ===== CSS変数 ===== */
     :root {
-      --bg: #0f172a;
-      --surface: #1e293b;
-      --surface2: #273549;
-      --border: #334155;
-      --text: #e2e8f0;
-      --text-sub: #94a3b8;
-      --text-muted: #64748b;
-
-      --blue: #3b82f6;
-      --blue-dim: #1e3a8a;
-      --blue-light: #93c5fd;
-      --green: #10b981;
-      --green-dim: #064e3b;
-      --green-light: #6ee7b7;
-      --orange: #f97316;
-      --orange-dim: #431407;
-      --orange-light: #fdba74;
-      --red: #ef4444;
-      --purple: #8b5cf6;
-      --purple-dim: #4c1d95;
-      --yellow: #fbbf24;
-      --gray: #64748b;
+      --bg: #0f172a; --surface: #1e293b; --surface2: #273549;
+      --border: #334155; --text: #e2e8f0; --text-sub: #94a3b8; --text-muted: #64748b;
+      --blue: #3b82f6; --blue-dim: #1e3a8a; --blue-light: #93c5fd;
+      --green: #10b981; --green-dim: #064e3b; --green-light: #6ee7b7;
+      --orange: #f97316; --orange-dim: #431407; --orange-light: #fdba74;
+      --red: #ef4444; --purple: #8b5cf6; --purple-dim: #4c1d95;
+      --yellow: #fbbf24; --gray: #64748b;
+      --teal: #14b8a6; --teal-dim: #0f3b38;
     }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
-      font-size: 14px;
-      line-height: 1.6;
-      min-height: 100vh;
-    }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif; font-size: 14px; line-height: 1.6; min-height: 100vh; }
 
     /* ===== ヘッダー ===== */
-    .header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 10px 20px;
-      position: sticky;
-      top: 0;
-      z-index: 200;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      flex-wrap: wrap;
-    }
-
-    .logo {
-      font-size: 18px;
-      font-weight: 800;
-      color: var(--blue-light);
-      white-space: nowrap;
-      flex-shrink: 0;
-      letter-spacing: -0.02em;
-    }
-    .logo-sub {
-      font-size: 11px;
-      color: var(--text-muted);
-      font-weight: 400;
-      letter-spacing: 0;
-    }
-
-    .search-wrap {
-      flex: 1;
-      min-width: 160px;
-      max-width: 440px;
-    }
-    .search-input {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 7px 13px;
-      color: var(--text);
-      font-size: 14px;
-      outline: none;
-      transition: border-color 0.15s;
-    }
+    .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 20px; position: sticky; top: 0; z-index: 200; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .logo { font-size: 18px; font-weight: 800; color: var(--blue-light); white-space: nowrap; flex-shrink: 0; letter-spacing: -0.02em; }
+    .logo-sub { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+    .search-wrap { flex: 1; min-width: 160px; max-width: 440px; }
+    .search-input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 7px 13px; color: var(--text); font-size: 14px; outline: none; transition: border-color 0.15s; }
     .search-input:focus { border-color: var(--blue); }
     .search-input::placeholder { color: var(--text-muted); }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-      margin-left: auto;
-    }
-
-    .sort-select {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      padding: 6px 10px;
-      font-size: 13px;
-      outline: none;
-      cursor: pointer;
-    }
-
+    .header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
+    .sort-select { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 6px 10px; font-size: 13px; outline: none; cursor: pointer; }
     .nav-tabs { display: flex; gap: 4px; }
-    .nav-tab {
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text-sub);
-      padding: 6px 13px;
-      font-size: 13px;
-      cursor: pointer;
-      transition: all 0.15s;
-      white-space: nowrap;
-    }
+    .nav-tab { background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--text-sub); padding: 6px 13px; font-size: 13px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
     .nav-tab:hover { background: var(--surface2); color: var(--text); }
     .nav-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .mobile-filter-btn { display: none; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text-sub); padding: 6px 12px; font-size: 13px; cursor: pointer; }
 
-    .mobile-filter-btn {
-      display: none;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text-sub);
-      padding: 6px 12px;
-      font-size: 13px;
-      cursor: pointer;
-    }
+    /* アクティブフィルターチップ */
+    .active-filters { background: var(--surface); border-bottom: 1px solid var(--border); padding: 6px 20px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; min-height: 0; }
+    .active-filters:empty { display: none; }
+    .active-chip { background: var(--blue-dim); border: 1px solid var(--blue); border-radius: 12px; color: var(--blue-light); font-size: 11px; padding: 2px 10px 2px 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+    .active-chip::after { content: "×"; font-size: 12px; opacity: 0.7; }
+    .active-chip:hover { opacity: 0.8; }
 
     /* ===== レイアウト ===== */
-    .layout {
-      display: flex;
-      min-height: calc(100vh - 57px);
-    }
+    .layout { display: flex; min-height: calc(100vh - 57px); }
 
     /* ===== サイドバー ===== */
-    .sidebar {
-      width: 256px;
-      flex-shrink: 0;
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      padding: 14px 12px;
-      overflow-y: auto;
-      height: calc(100vh - 57px);
-      position: sticky;
-      top: 57px;
-    }
-
+    .sidebar { width: 256px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); padding: 14px 12px; overflow-y: auto; height: calc(100vh - 57px); position: sticky; top: 57px; }
     .sidebar-section { margin-bottom: 18px; }
-    .sidebar-title {
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-muted);
-      margin-bottom: 8px;
-    }
-
-    /* 統計 */
-    .stat-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 4px 0;
-      font-size: 13px;
-      border-bottom: 1px solid var(--border);
-    }
+    .sidebar-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; }
+    .stat-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
     .stat-row:last-child { border-bottom: none; }
     .stat-val { font-weight: 700; color: var(--blue-light); }
-
     .firm-bar { margin-bottom: 7px; }
-    .firm-bar-head {
-      display: flex;
-      justify-content: space-between;
-      font-size: 11px;
-      margin-bottom: 2px;
-      color: var(--text-sub);
-    }
+    .firm-bar-head { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; color: var(--text-sub); }
     .firm-bar-head span:last-child { color: var(--purple); font-weight: 600; }
     .firm-bar-track { height: 3px; background: var(--border); border-radius: 2px; }
     .firm-bar-fill { height: 100%; background: var(--purple); border-radius: 2px; transition: width 0.4s; }
-
-    /* フィルター */
     .filter-group { margin-bottom: 12px; }
-    .filter-group-label {
-      font-size: 11px;
-      color: var(--text-sub);
-      font-weight: 500;
-      margin-bottom: 5px;
-    }
+    .filter-group-label { font-size: 11px; color: var(--text-sub); font-weight: 500; margin-bottom: 5px; }
     .filter-chips { display: flex; flex-wrap: wrap; gap: 3px; }
-    .chip {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 2px 7px;
-      font-size: 11px;
-      cursor: pointer;
-      color: var(--text-muted);
-      transition: all 0.12s;
-      user-select: none;
-    }
+    .chip { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 2px 7px; font-size: 11px; cursor: pointer; color: var(--text-muted); transition: all 0.12s; user-select: none; }
     .chip:hover { border-color: var(--text-sub); color: var(--text); }
     .chip.on-blue  { background: var(--blue-dim);   border-color: var(--blue);   color: var(--blue-light); }
     .chip.on-green { background: var(--green-dim);  border-color: var(--green);  color: var(--green-light); }
     .chip.on-orange{ background: var(--orange-dim); border-color: var(--orange); color: var(--orange-light); }
-
-    .filter-select {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 5px;
-      color: var(--text);
-      padding: 5px 7px;
-      font-size: 12px;
-      outline: none;
-    }
-
-    .clear-btn {
-      width: 100%;
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 5px;
-      color: var(--text-muted);
-      padding: 5px;
-      font-size: 12px;
-      cursor: pointer;
-      margin-top: 4px;
-      transition: all 0.15s;
-    }
+    .chip.on-teal  { background: var(--teal-dim);   border-color: var(--teal);   color: #99f6e4; }
+    .chip-cnt { opacity: 0.65; font-size: 10px; }
+    .filter-select { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 5px 7px; font-size: 12px; outline: none; }
+    .clear-btn { width: 100%; background: transparent; border: 1px solid var(--border); border-radius: 5px; color: var(--text-muted); padding: 5px; font-size: 12px; cursor: pointer; margin-top: 4px; transition: all 0.15s; }
     .clear-btn:hover { background: var(--surface2); color: var(--text); }
 
-    /* ===== メインコンテンツ ===== */
+    /* ===== コンテンツ ===== */
     .content { flex: 1; padding: 14px 18px; overflow-x: hidden; }
-
-    .results-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 14px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid var(--border);
-    }
+    .results-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
     .results-count { font-size: 13px; color: var(--text-sub); }
     .results-count strong { color: var(--text); }
 
     /* ===== カードグリッド ===== */
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-      gap: 12px;
-    }
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
 
     /* ===== スライドカード ===== */
-    .slide-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 13px;
-      position: relative;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    .slide-card:hover {
-      border-color: #475569;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-    }
+    .slide-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; position: relative; transition: border-color 0.15s, box-shadow 0.15s; }
+    .slide-card:hover { border-color: #475569; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
 
-    .new-badge {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: var(--red);
-      color: #fff;
-      font-size: 9px;
-      font-weight: 800;
-      padding: 2px 5px;
-      border-radius: 3px;
-      letter-spacing: 0.05em;
-    }
+    /* サムネイル */
+    .card-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: var(--surface2); display: block; }
+    .card-thumb-placeholder { width: 100%; aspect-ratio: 16/9; background: var(--surface2); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 28px; }
+    .card-body { padding: 13px; }
 
-    .card-title {
-      font-size: 13px;
-      font-weight: 600;
-      line-height: 1.5;
-      margin-bottom: 8px;
-      padding-right: 44px;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      color: var(--text);
-    }
+    .new-badge { position: absolute; top: 10px; right: 10px; background: var(--red); color: #fff; font-size: 9px; font-weight: 800; padding: 2px 5px; border-radius: 3px; letter-spacing: 0.05em; }
+    .card-title { font-size: 13px; font-weight: 600; line-height: 1.5; margin-bottom: 8px; padding-right: 44px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); }
     .card-title a { color: inherit; text-decoration: none; }
     .card-title a:hover { color: var(--blue-light); text-decoration: underline; }
-
     .card-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 7px; }
-
-    .badge {
-      display: inline-block;
-      padding: 2px 7px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 500;
-      line-height: 1.4;
-    }
-    .b-firm   { background: var(--purple-dim); color: #ddd6fe; border: 1px solid #6d28d9; }
-    .b-year   { background: var(--surface2);   color: var(--text-sub); border: 1px solid var(--border); }
-    .b-struct { background: var(--blue-dim);   color: var(--blue-light); border: 1px solid var(--blue); }
-    .b-design { background: var(--green-dim);  color: var(--green-light); border: 1px solid var(--green); }
-    .b-theme  { background: var(--orange-dim); color: var(--orange-light); border: 1px solid var(--orange); }
-
-    .card-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 9px; }
-
-    .card-footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding-top: 8px;
-      border-top: 1px solid var(--border);
-    }
+    .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 500; line-height: 1.4; }
+    .b-firm    { background: var(--purple-dim); color: #ddd6fe; border: 1px solid #6d28d9; }
+    .b-year    { background: var(--surface2);   color: var(--text-sub); border: 1px solid var(--border); }
+    .b-struct  { background: var(--blue-dim);   color: var(--blue-light); border: 1px solid var(--blue); }
+    .b-design  { background: var(--green-dim);  color: var(--green-light); border: 1px solid var(--green); }
+    .b-theme   { background: var(--orange-dim); color: var(--orange-light); border: 1px solid var(--orange); }
+    .b-defense { background: var(--teal-dim);   color: #99f6e4; border: 1px solid var(--teal); }
+    .b-ministry{ background: #1c2a3a; color: #7dd3fc; border: 1px solid #3b82f6; font-size: 10px; }
+    .card-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 7px; }
+    .highlight-info { font-size: 11px; color: var(--text-muted); margin-bottom: 7px; }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid var(--border); }
     .card-meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); }
-
-    .ft-badge {
-      padding: 1px 5px;
-      border-radius: 3px;
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
+    .ft-badge { padding: 1px 5px; border-radius: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
     .ft-pdf  { background: #1e3a8a; color: #93c5fd; }
     .ft-pptx { background: #78350f; color: #fde68a; }
     .ft-ppt  { background: #7f1d1d; color: #fca5a5; }
+    .ft-html { background: #1e3a8a; color: #93c5fd; }
     .ft-other{ background: var(--surface2); color: var(--text-muted); }
-
+    .slide-type-badge { font-size: 10px; color: var(--text-muted); border: 1px solid var(--border); border-radius: 3px; padding: 1px 4px; }
     .card-actions { display: flex; align-items: center; gap: 5px; }
-
-    .dl-btn {
-      background: var(--blue);
-      border: none;
-      border-radius: 5px;
-      color: #fff;
-      padding: 4px 11px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-block;
-      transition: background 0.15s;
-    }
+    .dl-btn { background: var(--blue); border: none; border-radius: 5px; color: #fff; padding: 4px 11px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; transition: background 0.15s; }
     .dl-btn:hover { background: #2563eb; }
-
-    .bm-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 5px;
-      color: var(--text-muted);
-      padding: 4px 8px;
-      font-size: 14px;
-      cursor: pointer;
-      line-height: 1;
-      transition: all 0.15s;
-    }
+    .bm-btn { background: transparent; border: 1px solid var(--border); border-radius: 5px; color: var(--text-muted); padding: 4px 8px; font-size: 14px; cursor: pointer; line-height: 1; transition: all 0.15s; }
     .bm-btn.on { color: var(--yellow); border-color: #b45309; }
     .bm-btn:hover { border-color: var(--yellow); color: var(--yellow); }
 
     /* ===== ローディング / 空状態 ===== */
-    .loading-box {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      padding: 60px 20px;
-      color: var(--text-sub);
-      grid-column: 1/-1;
-    }
-    .spinner {
-      width: 30px; height: 30px;
-      border: 3px solid var(--border);
-      border-top-color: var(--blue);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
+    .loading-box { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 60px 20px; color: var(--text-sub); grid-column: 1/-1; }
+    .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-
-    .empty-box {
-      text-align: center;
-      padding: 60px 20px;
-      color: var(--text-sub);
-      grid-column: 1/-1;
-    }
+    .empty-box { text-align: center; padding: 60px 20px; color: var(--text-sub); grid-column: 1/-1; }
     .empty-box h3 { color: var(--text); margin-bottom: 6px; }
-    .empty-box p  { font-size: 13px; }
+    .empty-box p { font-size: 13px; }
+
+    /* ===== 初回ガイドバナー ===== */
+    .guide-banner { background: #1e3a5f; border-bottom: 1px solid #2d5a8e; padding: 8px 20px; font-size: 13px; color: #93c5fd; display: flex; align-items: center; gap: 10px; }
+    .guide-banner button { background: transparent; border: none; color: #93c5fd; cursor: pointer; font-size: 16px; line-height: 1; margin-left: auto; opacity: 0.6; }
+    .guide-banner button:hover { opacity: 1; }
 
     /* ===== ビュー切替 ===== */
     .view-panel { display: none; }
     .view-panel.active { display: block; }
 
-    /* ===== ファーム比較ビュー ===== */
-    .comparison-ctrl {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 18px;
-      flex-wrap: wrap;
-    }
+    /* ===== ファーム比較 ===== */
+    .comparison-ctrl { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
     .comparison-ctrl label { font-size: 13px; color: var(--text-sub); }
-    .comp-select {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      padding: 7px 12px;
-      font-size: 13px;
-      outline: none;
-      min-width: 200px;
-    }
-
+    .comp-select { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 7px 12px; font-size: 13px; outline: none; min-width: 200px; }
     .comp-firm-section { margin-bottom: 24px; }
-    .comp-firm-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--purple);
-      margin-bottom: 10px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid var(--border);
-    }
-    .comp-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 10px;
-    }
+    .comp-firm-title { font-size: 13px; font-weight: 700; color: var(--purple); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+    .comp-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 
-    /* ===== ブックマークビュー ===== */
-    .bm-analysis {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      margin-bottom: 18px;
-    }
+    /* ===== ブックマーク ===== */
+    .bm-analysis { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 18px; }
     .bm-analysis h3 { font-size: 13px; color: var(--text-sub); margin-bottom: 10px; }
     .tendency-msg { font-size: 14px; color: var(--text); line-height: 1.7; }
     .tendency-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
 
-    /* ===== モバイルサイドバーオーバーレイ ===== */
-    .sidebar-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.6);
-      z-index: 300;
-    }
+    /* ===== モバイルサイドバー ===== */
+    .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 300; }
     .sidebar-overlay.open { display: block; }
-    .sidebar-overlay .sidebar {
-      position: fixed;
-      left: 0; top: 0; bottom: 0;
-      z-index: 301;
-      width: 280px;
-      height: 100vh;
-    }
+    .sidebar-overlay .sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 301; width: 280px; height: 100vh; }
 
-    /* ===== レスポンシブ ===== */
     @media (max-width: 900px) {
       .sidebar { display: none; }
       .mobile-filter-btn { display: block; }
@@ -483,24 +171,28 @@
 </head>
 <body>
 
+<!-- ===== 初回ガイドバナー ===== -->
+<div class="guide-banner" id="guideBanner" style="display:none">
+  📋 論点構造・デザイン・ファーム別に経産省・防衛省の委託調査報告書を探せます。左のタグで絞り込んでみましょう。
+  <button onclick="closeBanner()">✕</button>
+</div>
+
 <!-- ===== ヘッダー ===== -->
 <header class="header">
   <div>
     <div class="logo">ConsulSlides</div>
-    <div class="logo-sub">官公庁委託報告書 学習DB</div>
+    <div class="logo-sub">経産省・防衛省 委託調査報告書 学習DB</div>
   </div>
-
   <div class="search-wrap">
-    <input class="search-input" id="searchInput" type="text"
-      placeholder="タイトル・ファーム名で検索..." />
+    <input class="search-input" id="searchInput" type="text" placeholder="タイトル・ファーム名で検索..." />
   </div>
-
   <div class="header-right">
     <button class="mobile-filter-btn" id="mobileFilterBtn">フィルター</button>
     <select class="sort-select" id="sortSelect">
       <option value="newest">新着順</option>
       <option value="firm">ファーム名順</option>
       <option value="slides">スライド枚数順</option>
+      <option value="highlight">注目度順</option>
     </select>
     <div class="nav-tabs">
       <button class="nav-tab active" data-view="slides">スライド一覧</button>
@@ -510,31 +202,23 @@
   </div>
 </header>
 
-<!-- ===== モバイルサイドバーオーバーレイ ===== -->
+<!-- アクティブフィルター表示 -->
+<div class="active-filters" id="activeFilters"></div>
+
+<!-- ===== モバイルサイドバー ===== -->
 <div class="sidebar-overlay" id="sidebarOverlay">
   <aside class="sidebar" id="mobileSidebar"></aside>
 </div>
 
 <!-- ===== メインレイアウト ===== -->
 <div class="layout">
-
-  <!-- サイドバー（デスクトップ） -->
   <aside class="sidebar" id="mainSidebar">
 
     <div class="sidebar-section">
       <div class="sidebar-title">統計</div>
-      <div class="stat-row">
-        <span>総資料数</span>
-        <span class="stat-val" id="totalCount">—</span>
-      </div>
-      <div class="stat-row">
-        <span>今週追加</span>
-        <span class="stat-val" id="weekCount">—</span>
-      </div>
-      <div class="stat-row">
-        <span>ファーム数</span>
-        <span class="stat-val" id="firmCount">—</span>
-      </div>
+      <div class="stat-row"><span>総資料数</span><span class="stat-val" id="totalCount">—</span></div>
+      <div class="stat-row"><span>今週追加</span><span class="stat-val" id="weekCount">—</span></div>
+      <div class="stat-row"><span>ファーム数</span><span class="stat-val" id="firmCount">—</span></div>
     </div>
 
     <div class="sidebar-section">
@@ -549,37 +233,44 @@
         <div class="filter-group-label">構造タグ</div>
         <div class="filter-chips" id="structureChips"></div>
       </div>
-
       <div class="filter-group">
         <div class="filter-group-label">デザインタグ</div>
         <div class="filter-chips" id="designChips"></div>
       </div>
-
       <div class="filter-group">
         <div class="filter-group-label">テーマタグ</div>
         <div class="filter-chips" id="themeChips"></div>
       </div>
-
       <div class="filter-group">
         <div class="filter-group-label">年度</div>
-        <select class="filter-select" id="yearSelect">
-          <option value="">全年度</option>
-        </select>
+        <select class="filter-select" id="yearSelect"><option value="">全年度</option></select>
       </div>
-
       <div class="filter-group">
         <div class="filter-group-label">ファーム</div>
-        <select class="filter-select" id="firmSelect">
-          <option value="">全ファーム</option>
+        <select class="filter-select" id="firmSelect"><option value="">全ファーム</option></select>
+      </div>
+      <div class="filter-group">
+        <div class="filter-group-label">省庁</div>
+        <select class="filter-select" id="ministrySelect">
+          <option value="">全省庁</option>
+          <option value="経済産業省">経済産業省</option>
+          <option value="防衛省">防衛省</option>
         </select>
       </div>
-
       <div class="filter-group">
         <div class="filter-group-label">ファイル形式</div>
         <div class="filter-chips" id="typeChips">
           <span class="chip" data-val="pdf">PDF</span>
           <span class="chip" data-val="pptx">PPTX</span>
           <span class="chip" data-val="ppt">PPT</span>
+          <span class="chip" data-val="html">HTML</span>
+        </div>
+      </div>
+      <div class="filter-group">
+        <div class="filter-group-label">資料種別</div>
+        <div class="filter-chips" id="slideTypeChips">
+          <span class="chip" data-stype="slide">横長スライド</span>
+          <span class="chip" data-stype="document">縦長レポート</span>
         </div>
       </div>
 
@@ -587,235 +278,137 @@
     </div>
   </aside>
 
-  <!-- コンテンツ -->
   <main class="content">
-
-    <!-- スライド一覧 -->
     <div id="slidesView" class="view-panel active">
       <div class="results-bar">
         <div class="results-count" id="resultsCount">読み込み中...</div>
       </div>
       <div class="card-grid" id="cardGrid">
-        <div class="loading-box">
-          <div class="spinner"></div>
-          <div>データを取得中...</div>
-        </div>
+        <div class="loading-box"><div class="spinner"></div><div>データを取得中...</div></div>
       </div>
     </div>
 
-    <!-- ファーム比較 -->
     <div id="comparisonView" class="view-panel">
       <div class="comparison-ctrl">
         <label>テーマで比較：</label>
-        <select class="comp-select" id="compThemeSelect">
-          <option value="">テーマを選択してください</option>
-        </select>
+        <select class="comp-select" id="compThemeSelect"><option value="">テーマを選択してください</option></select>
         <span id="compSummary" style="font-size:12px;color:var(--text-muted)"></span>
       </div>
       <div id="compContent">
-        <div class="empty-box">
-          <h3>テーマを選択してください</h3>
-          <p>同じテーマを各コンサルファームがどう構造化したか並べて確認できます</p>
-        </div>
+        <div class="empty-box"><h3>テーマを選択してください</h3><p>同じテーマを各ファームがどう構造化したか並べて確認できます</p></div>
       </div>
     </div>
 
-    <!-- ブックマーク -->
     <div id="bookmarksView" class="view-panel">
       <div id="bmAnalysis"></div>
       <div class="card-grid" id="bmGrid"></div>
     </div>
-
   </main>
-</div><!-- /.layout -->
+</div>
 
 <script>
-/* =====================================================
-   設定（使用前に書き換えてください）
-   ===================================================== */
+/* ===== 設定 ===== */
 const GIST_USERNAME = "ytmori1013-dev";
 const GIST_ID       = "30013c3c5e896a2ba0b9ed7578128397";
 
-/* =====================================================
-   定数
-   ===================================================== */
-const STRUCTURE_TAGS = [
-  "Issue Tree", "MECE", "So What",
-  "ピラミッド構造", "Hypothesis driven", "データドリブン"
-];
-const DESIGN_TAGS = [
-  "図解中心", "テキスト重視", "データビジュアライズ", "インフォグラフィック"
-];
-const THEME_TAGS = [
-  "DX・デジタル", "人的資本", "GX・脱炭素", "スタートアップ",
-  "社会保障", "産業政策", "地域・まちづくり", "海外・グローバル"
+/* ===== 定数 ===== */
+const STRUCTURE_TAGS = ["Issue Tree","MECE","So What","ピラミッド構造","仮説思考","ファクトベース"];
+const DESIGN_TAGS    = ["図解中心","テキスト重視","表多用","データビジュアル"];
+const THEME_TAGS     = [
+  "DX・デジタル","人的資本","GX・脱炭素","スタートアップ",
+  "社会保障","産業政策","地域・まちづくり","海外・グローバル","防衛・宇宙"
 ];
 
-/* =====================================================
-   サンプルデータ（Gist未設定時のデモ表示用）
-   ===================================================== */
-const SAMPLE_SLIDES = [
-  {
-    id: "demo001", title: "令和6年度 DX推進に向けた人材育成・確保に関する調査報告書",
-    url: "#", file_type: "pptx", fiscal_year: "令和6", firm_name: "BCG",
-    tags: { structure: ["Issue Tree","So What"], design: ["図解中心"], theme: ["DX・デジタル","人的資本"], year: ["令和6"] },
-    slide_count: 52, crawled_at: new Date().toISOString()
-  },
-  {
-    id: "demo002", title: "令和5年度 GX推進のための産業政策に関する調査研究",
-    url: "#", file_type: "pdf", fiscal_year: "令和5", firm_name: "Deloitte",
-    tags: { structure: ["MECE","データドリブン"], design: ["データビジュアライズ"], theme: ["GX・脱炭素","産業政策"], year: ["令和5"] },
-    slide_count: 38, crawled_at: new Date(Date.now()-86400000).toISOString()
-  },
-  {
-    id: "demo003", title: "令和6年度 スタートアップ・エコシステムの強化に関する調査",
-    url: "#", file_type: "pptx", fiscal_year: "令和6", firm_name: "McKinsey",
-    tags: { structure: ["Hypothesis driven","ピラミッド構造"], design: ["図解中心"], theme: ["スタートアップ","海外・グローバル"], year: ["令和6"] },
-    slide_count: 67, crawled_at: new Date(Date.now()-3600000).toISOString()
-  },
-  {
-    id: "demo004", title: "令和5年度 地域経済の活性化に向けた政策に関する調査報告",
-    url: "#", file_type: "pptx", fiscal_year: "令和5", firm_name: "NRI",
-    tags: { structure: ["Issue Tree"], design: ["テキスト重視"], theme: ["地域・まちづくり","産業政策"], year: ["令和5"] },
-    slide_count: 29, crawled_at: new Date(Date.now()-172800000).toISOString()
-  },
-  {
-    id: "demo005", title: "令和6年度 社会保障制度の持続可能性に関する調査研究",
-    url: "#", file_type: "pdf", fiscal_year: "令和6", firm_name: "PwC",
-    tags: { structure: ["データドリブン","MECE"], design: ["データビジュアライズ"], theme: ["社会保障","人的資本"], year: ["令和6"] },
-    slide_count: 0, crawled_at: new Date(Date.now()-259200000).toISOString()
-  },
-  {
-    id: "demo006", title: "令和4年度 海外市場開拓支援に向けた調査報告書",
-    url: "#", file_type: "pptx", fiscal_year: "令和4", firm_name: "Accenture",
-    tags: { structure: ["So What","ピラミッド構造"], design: ["インフォグラフィック"], theme: ["海外・グローバル","DX・デジタル"], year: ["令和4"] },
-    slide_count: 44, crawled_at: new Date(Date.now()-345600000).toISOString()
-  }
-];
-
-/* =====================================================
-   状態
-   ===================================================== */
+/* ===== 状態 ===== */
 let allSlides = [];
-let bookmarks = new Set(JSON.parse(localStorage.getItem("cs_bookmarks") || "[]"));
+let bookmarks  = new Set(JSON.parse(localStorage.getItem("cs_bookmarks") || "[]"));
 let lastVisit  = localStorage.getItem("cs_last_visit") || "";
 let currentView = "slides";
 let currentSort = "newest";
-let isDemoMode  = false;
 
 const filters = {
-  text:      "",
-  structure: new Set(),
-  design:    new Set(),
-  theme:     new Set(),
-  year:      "",
-  firm:      "",
-  fileType:  new Set(),
+  text: "", structure: new Set(), design: new Set(), theme: new Set(),
+  year: "", firm: "", ministry: "", fileType: new Set(), slideType: "",
 };
 
-/* =====================================================
-   ユーティリティ
-   ===================================================== */
-function esc(str) {
-  return String(str ?? "")
-    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+/* ===== ユーティリティ ===== */
+function esc(s) {
+  return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
-
-function isNew(slide) {
-  if (!lastVisit) return false;
-  return (slide.crawled_at || "") > lastVisit;
-}
-
+function isNew(s) { return lastVisit && (s.crawled_at || "") > lastVisit; }
 function ftClass(ft) {
-  if (ft === "pdf")  return "ft-pdf";
-  if (ft === "pptx") return "ft-pptx";
-  if (ft === "ppt")  return "ft-ppt";
-  return "ft-other";
+  return ft === "pdf" ? "ft-pdf" : ft === "pptx" ? "ft-pptx" : ft === "ppt" ? "ft-ppt" : ft === "html" ? "ft-html" : "ft-other";
+}
+function highlightScore(s) {
+  return (s.highlight_slides || []).length * 3 + (s.slide_count || 0) / 10;
 }
 
-/* =====================================================
-   データ取得
-   ===================================================== */
+/* ===== データ取得 ===== */
 async function loadData() {
-  if (GIST_USERNAME === "YOUR_USERNAME" || GIST_ID === "YOUR_GIST_ID") {
-    isDemoMode = true;
-    console.info("[ConsulSlides] デモモードで表示します。GIST_USERNAME と GIST_ID を設定してください。");
-    allSlides = SAMPLE_SLIDES;
-    initUI();
-    return;
-  }
-
   try {
-    // まず raw URL を試みる（キャッシュが最新でない場合がある）
     const rawUrl = `https://gist.githubusercontent.com/${esc(GIST_USERNAME)}/${esc(GIST_ID)}/raw/slides.json`;
     let resp = await fetch(rawUrl);
-
     if (!resp.ok) {
-      // GitHub API 経由でフォールバック
       const apiResp = await fetch(`https://api.github.com/gists/${esc(GIST_ID)}`);
       if (!apiResp.ok) throw new Error(`API ${apiResp.status}`);
       const gist = await apiResp.json();
-      const fileInfo = gist.files?.["slides.json"];
-      if (!fileInfo) throw new Error("slides.json が Gist に存在しません");
-      resp = await fetch(fileInfo.raw_url);
+      const fi = gist.files?.["slides.json"];
+      if (!fi) throw new Error("slides.json が Gist に存在しません");
+      resp = await fetch(fi.raw_url);
     }
-
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     allSlides = data.slides || [];
     initUI(data);
   } catch (e) {
-    document.getElementById("cardGrid").innerHTML = `
-      <div class="empty-box">
-        <h3>データの取得に失敗しました</h3>
-        <p style="margin-top:6px;font-size:12px">
-          GIST_USERNAME・GIST_ID の設定を確認してください<br>
-          <code style="color:var(--text-muted)">${esc(e.message)}</code>
-        </p>
-      </div>`;
+    document.getElementById("cardGrid").innerHTML = `<div class="empty-box"><h3>データの取得に失敗しました</h3><p style="font-size:12px;margin-top:6px"><code>${esc(e.message)}</code></p></div>`;
     document.getElementById("resultsCount").textContent = "エラー";
   }
 }
 
-/* =====================================================
-   UI 初期化
-   ===================================================== */
+/* ===== UI 初期化 ===== */
 function initUI(data) {
+  // 初回ガイド
+  if (!localStorage.getItem("cs_visited")) {
+    document.getElementById("guideBanner").style.display = "flex";
+  }
   updateStats(data);
   buildFilters();
   applyAndRender();
   localStorage.setItem("cs_last_visit", new Date().toISOString());
+  localStorage.setItem("cs_visited", "1");
+}
+function closeBanner() {
+  document.getElementById("guideBanner").style.display = "none";
 }
 
-/* ===== 統計パネル ===== */
+/* ===== 統計 ===== */
 function updateStats(data) {
-  const total = data?.total_count ?? allSlides.length;
-  document.getElementById("totalCount").textContent = total.toLocaleString();
-
-  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-  const weekNew = allSlides.filter(s => (s.crawled_at || "") >= weekAgo).length;
-  document.getElementById("weekCount").textContent = weekNew;
-
-  const firms = new Set(allSlides.map(s => s.firm_name || "不明").filter(Boolean));
-  firms.delete("不明");
+  document.getElementById("totalCount").textContent = (data?.total_count ?? allSlides.length).toLocaleString();
+  const wa = new Date(Date.now() - 7*86400000).toISOString();
+  document.getElementById("weekCount").textContent = allSlides.filter(s => (s.crawled_at||"") >= wa).length;
+  const firms = new Set(allSlides.map(s => s.firm_name||"不明").filter(f => f !== "不明"));
   document.getElementById("firmCount").textContent = firms.size;
-
-  // ファーム別ランキング
   const fc = {};
-  allSlides.forEach(s => { const f = s.firm_name || "不明"; fc[f] = (fc[f]||0) + 1; });
-  const top5 = Object.entries(fc).sort((a,b) => b[1]-a[1]).slice(0,5);
-  const max  = top5[0]?.[1] || 1;
-  document.getElementById("firmRanking").innerHTML = top5.map(([name,cnt]) => `
+  allSlides.forEach(s => { const f = s.firm_name||"不明"; fc[f] = (fc[f]||0)+1; });
+  const top5 = Object.entries(fc).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const mx = top5[0]?.[1] || 1;
+  document.getElementById("firmRanking").innerHTML = top5.map(([n,c]) => `
     <div class="firm-bar">
-      <div class="firm-bar-head">
-        <span>${esc(name)}</span>
-        <span>${cnt}</span>
-      </div>
-      <div class="firm-bar-track">
-        <div class="firm-bar-fill" style="width:${(cnt/max*100).toFixed(1)}%"></div>
-      </div>
+      <div class="firm-bar-head"><span>${esc(n)}</span><span>${c}</span></div>
+      <div class="firm-bar-track"><div class="firm-bar-fill" style="width:${(c/mx*100).toFixed(1)}%"></div></div>
     </div>`).join("");
+}
+
+/* ===== フィルター件数カウント ===== */
+function countTag(key, val) {
+  return allSlides.filter(s => {
+    const tags = s.tags || {};
+    if (key === "structure") return (tags.structure||[]).includes(val);
+    if (key === "design")    return (tags.design||[]).includes(val);
+    if (key === "theme")     return (tags.theme||[]).includes(val);
+    return false;
+  }).length;
 }
 
 /* ===== フィルターUI構築 ===== */
@@ -824,33 +417,37 @@ function buildFilters() {
   buildChips("designChips",    DESIGN_TAGS,    "design",    "on-green");
   buildChips("themeChips",     THEME_TAGS,     "theme",     "on-orange");
 
-  // 年度選択肢
-  const years = [...new Set(
-    allSlides.map(s => s.fiscal_year || s.tags?.year?.[0] || "").filter(Boolean)
-  )].sort().reverse();
-  const ysel = document.getElementById("yearSelect");
-  years.forEach(y => ysel.append(Object.assign(document.createElement("option"), {value:y,textContent:y})));
+  const years = [...new Set(allSlides.map(s => s.fiscal_year || s.tags?.year?.[0] || "").filter(Boolean))].sort().reverse();
+  const ysel  = document.getElementById("yearSelect");
+  years.forEach(y => ysel.append(Object.assign(document.createElement("option"), {value:y, textContent:y})));
 
-  // ファーム選択肢
-  const flist = [...new Set(allSlides.map(s => s.firm_name||"不明"))].sort((a,b) => a.localeCompare(b,"ja"));
+  const firms = [...new Set(allSlides.map(s => s.firm_name||"不明"))].sort((a,b)=>a.localeCompare(b,"ja"));
   const fsel  = document.getElementById("firmSelect");
-  flist.forEach(f => fsel.append(Object.assign(document.createElement("option"), {value:f,textContent:f})));
+  firms.forEach(f => fsel.append(Object.assign(document.createElement("option"), {value:f, textContent:f})));
 
-  // ファイル形式チップ（typeChips は HTML に既定義）
-  document.querySelectorAll("#typeChips .chip").forEach(el => {
-    el.addEventListener("click", () => toggleTypeFilter(el));
+  document.querySelectorAll("#typeChips .chip").forEach(el => el.addEventListener("click", () => toggleTypeFilter(el)));
+  document.querySelectorAll("#slideTypeChips .chip").forEach(el => {
+    el.addEventListener("click", () => {
+      const v = el.dataset.stype;
+      if (filters.slideType === v) { filters.slideType = ""; el.classList.remove("on-blue"); }
+      else {
+        document.querySelectorAll("#slideTypeChips .chip").forEach(c => c.classList.remove("on-blue"));
+        filters.slideType = v; el.classList.add("on-blue");
+      }
+      applyAndRender();
+    });
   });
 
-  // 比較ビューのテーマ選択肢
   const csel = document.getElementById("compThemeSelect");
-  THEME_TAGS.forEach(t => csel.append(Object.assign(document.createElement("option"),{value:t,textContent:t})));
+  THEME_TAGS.forEach(t => csel.append(Object.assign(document.createElement("option"), {value:t, textContent:t})));
 }
 
 function buildChips(containerId, tags, filterKey, onClass) {
   const el = document.getElementById(containerId);
-  el.innerHTML = tags.map(t =>
-    `<span class="chip" data-filter="${filterKey}" data-tag="${esc(t)}">${esc(t)}</span>`
-  ).join("");
+  el.innerHTML = tags.map(t => {
+    const cnt = countTag(filterKey, t);
+    return `<span class="chip" data-filter="${filterKey}" data-tag="${esc(t)}">${esc(t)}<span class="chip-cnt"> ${cnt}</span></span>`;
+  }).join("");
   el.querySelectorAll(".chip").forEach(chip => {
     chip.addEventListener("click", () => {
       const tag = chip.dataset.tag;
@@ -869,9 +466,27 @@ function toggleTypeFilter(el) {
   applyAndRender();
 }
 
-/* =====================================================
-   フィルター適用
-   ===================================================== */
+/* ===== アクティブフィルタ表示 ===== */
+function renderActiveFilters() {
+  const chips = [];
+  if (filters.text)      chips.push({label:`"${filters.text}"`, clear:()=>{filters.text=""; document.getElementById("searchInput").value="";}});
+  if (filters.year)      chips.push({label:filters.year, clear:()=>{filters.year=""; document.getElementById("yearSelect").value="";}});
+  if (filters.firm)      chips.push({label:filters.firm, clear:()=>{filters.firm=""; document.getElementById("firmSelect").value="";}});
+  if (filters.ministry)  chips.push({label:filters.ministry, clear:()=>{filters.ministry=""; document.getElementById("ministrySelect").value="";}});
+  if (filters.slideType) chips.push({label: filters.slideType==="slide"?"横長スライド":"縦長レポート", clear:()=>{ filters.slideType=""; document.querySelectorAll("#slideTypeChips .chip").forEach(c=>c.classList.remove("on-blue"));}});
+  [...filters.structure].forEach(t => chips.push({label:t, clear:()=>{ filters.structure.delete(t); document.querySelectorAll(`[data-filter="structure"][data-tag="${t}"]`).forEach(c=>c.classList.remove("on-blue")); }}));
+  [...filters.design].forEach(t   => chips.push({label:t, clear:()=>{ filters.design.delete(t); document.querySelectorAll(`[data-filter="design"][data-tag="${t}"]`).forEach(c=>c.classList.remove("on-green")); }}));
+  [...filters.theme].forEach(t    => chips.push({label:t, clear:()=>{ filters.theme.delete(t); document.querySelectorAll(`[data-filter="theme"][data-tag="${t}"]`).forEach(c=>c.classList.remove("on-orange")); }}));
+  [...filters.fileType].forEach(t => chips.push({label:t.toUpperCase(), clear:()=>{ filters.fileType.delete(t); document.querySelectorAll(`[data-val="${t}"]`).forEach(c=>c.classList.remove("on-blue")); }}));
+
+  const af = document.getElementById("activeFilters");
+  af.innerHTML = chips.map((c,i) => `<span class="active-chip" data-idx="${i}">${esc(c.label)}</span>`).join("");
+  af.querySelectorAll(".active-chip").forEach((el, i) => {
+    el.addEventListener("click", () => { chips[i].clear(); applyAndRender(); });
+  });
+}
+
+/* ===== フィルター適用 ===== */
 function applyFilters() {
   return allSlides.filter(s => {
     if (filters.text) {
@@ -894,344 +509,239 @@ function applyFilters() {
       const yr = s.fiscal_year || s.tags?.year?.[0] || "";
       if (yr !== filters.year) return false;
     }
-    if (filters.firm) {
-      if ((s.firm_name||"不明") !== filters.firm) return false;
-    }
-    if (filters.fileType.size) {
-      if (!filters.fileType.has(s.file_type||"")) return false;
-    }
+    if (filters.firm && (s.firm_name||"不明") !== filters.firm) return false;
+    if (filters.ministry && (s.ministry||"") !== filters.ministry) return false;
+    if (filters.fileType.size && !filters.fileType.has(s.file_type||"")) return false;
+    if (filters.slideType && (s.slide_type||"") !== filters.slideType) return false;
     return true;
   });
 }
 
 function sortSlides(arr) {
   const copy = [...arr];
-  if (currentSort === "newest") return copy.sort((a,b)=>(b.crawled_at||"").localeCompare(a.crawled_at||""));
-  if (currentSort === "firm")   return copy.sort((a,b)=>(a.firm_name||"不明").localeCompare(b.firm_name||"不明","ja"));
-  if (currentSort === "slides") return copy.sort((a,b)=>(b.slide_count||0)-(a.slide_count||0));
+  if (currentSort === "newest")    return copy.sort((a,b)=>(b.crawled_at||"").localeCompare(a.crawled_at||""));
+  if (currentSort === "firm")      return copy.sort((a,b)=>(a.firm_name||"不明").localeCompare(b.firm_name||"不明","ja"));
+  if (currentSort === "slides")    return copy.sort((a,b)=>(b.slide_count||0)-(a.slide_count||0));
+  if (currentSort === "highlight") return copy.sort((a,b)=>highlightScore(b)-highlightScore(a));
   return copy;
 }
 
 function applyAndRender() {
+  renderActiveFilters();
   if (currentView !== "slides") return;
   const filtered = sortSlides(applyFilters());
-  const demoNote = isDemoMode
-    ? " <span style='color:var(--orange);font-size:11px'>（デモデータ）</span>" : "";
-  document.getElementById("resultsCount").innerHTML =
-    `<strong>${filtered.length.toLocaleString()}</strong> 件の資料${demoNote}`;
-
+  document.getElementById("resultsCount").innerHTML = `<strong>${filtered.length.toLocaleString()}</strong> 件の資料`;
   const grid = document.getElementById("cardGrid");
   if (filtered.length === 0) {
-    grid.innerHTML = `
-      <div class="empty-box">
-        <h3>条件に一致する資料がありません</h3>
-        <p>フィルターを変更してお試しください</p>
-      </div>`;
+    grid.innerHTML = `<div class="empty-box"><h3>条件に一致する資料がありません</h3><p>フィルターを緩めてお試しください</p></div>`;
   } else {
     grid.innerHTML = filtered.map(s => renderCard(s)).join("");
     attachBmEvents(grid);
   }
 }
 
-/* =====================================================
-   カードレンダリング
-   ===================================================== */
+/* ===== カードレンダリング ===== */
 function renderCard(s) {
-  const bm   = bookmarks.has(s.id);
+  const bm = bookmarks.has(s.id);
   const tags = s.tags || {};
-  const sTags = (tags.structure||[]).slice(0,3);
-  const dTags = (tags.design||[]).slice(0,2);
-  const tTags = (tags.theme||[]).slice(0,3);
-  const yr    = (tags.year||[])[0] || s.fiscal_year || "";
-  const ft    = s.file_type || "unknown";
+  const scores = s.structure_scores || {};
+  const sTags  = (tags.structure||[]).slice(0,3);
+  const dTags  = (tags.design||[]).slice(0,2);
+  const tTags  = (tags.theme||[]).slice(0,3);
+  const yr  = (tags.year||[])[0] || s.fiscal_year || "";
+  const ft  = s.file_type || "unknown";
+  const st  = s.slide_type || "";
+  const ministry = s.ministry || "";
+  const highlights = s.highlight_slides || [];
+  const thumbs = s.thumbnail_urls || [];
+  const isDefense = (tags.theme||[]).includes("防衛・宇宙");
+
+  // サムネイル or プレースホルダー
+  let thumbHtml = "";
+  if (thumbs.length > 0) {
+    thumbHtml = `<img class="card-thumb" src="${esc(thumbs[0])}" alt="サムネイル" loading="lazy">`;
+  } else if (ft !== "html") {
+    thumbHtml = `<div class="card-thumb-placeholder">${ft === "pptx" || ft === "ppt" ? "📊" : "📄"}</div>`;
+  }
+
+  // 構造タグ（◎/○マーク付き）
+  const sTagsHtml = sTags.map(t => {
+    const m = scores[t]?.mark || "";
+    return `<span class="badge b-struct">${m ? m+" " : ""}${esc(t)}</span>`;
+  }).join("");
 
   const allBadges = [
-    ...sTags.map(t=>`<span class="badge b-struct">${esc(t)}</span>`),
-    ...dTags.map(t=>`<span class="badge b-design">${esc(t)}</span>`),
-    ...tTags.map(t=>`<span class="badge b-theme">${esc(t)}</span>`),
+    sTagsHtml,
+    ...dTags.map(t => `<span class="badge b-design">${esc(t)}</span>`),
+    ...tTags.map(t => `<span class="${isDefense && t==="防衛・宇宙" ? "badge b-defense" : "badge b-theme"}">${esc(t)}</span>`),
   ].join("");
+
+  const highlightHtml = highlights.length > 0
+    ? `<div class="highlight-info">★ 注目: P.${highlights.join(", P.")}</div>` : "";
+
+  const stBadge = st ? `<span class="slide-type-badge">${st === "slide" ? "横長" : "縦長"}</span>` : "";
+  const ministryBadge = ministry ? `<span class="badge b-ministry">${esc(ministry)}</span>` : "";
 
   return `
 <div class="slide-card">
-  ${isNew(s) ? '<span class="new-badge">NEW</span>' : ""}
-  <div class="card-title">
-    <a href="${esc(s.url||"#")}" target="_blank" rel="noopener">${esc(s.title||"(タイトルなし)")}</a>
-  </div>
-  <div class="card-badges">
-    <span class="badge b-firm">${esc(s.firm_name||"不明")}</span>
-    ${yr ? `<span class="badge b-year">${esc(yr)}</span>` : ""}
-  </div>
-  ${allBadges ? `<div class="card-tags">${allBadges}</div>` : ""}
-  <div class="card-footer">
-    <div class="card-meta">
-      <span class="ft-badge ${ftClass(ft)}">${esc(ft.toUpperCase())}</span>
-      ${(s.slide_count||0) > 0 ? `<span>📄 ${s.slide_count}枚</span>` : ""}
+  ${thumbHtml}
+  <div class="card-body">
+    ${isNew(s) ? '<span class="new-badge">NEW</span>' : ""}
+    <div class="card-title">
+      <a href="${esc(s.url||"#")}" target="_blank" rel="noopener">${esc(s.title||"(タイトルなし)")}</a>
     </div>
-    <div class="card-actions">
-      <a href="${esc(s.url||"#")}" target="_blank" rel="noopener" class="dl-btn">DL</a>
-      <button class="bm-btn ${bm?"on":""}" data-id="${esc(s.id||"")}">${bm?"★":"☆"}</button>
+    <div class="card-badges">
+      <span class="badge b-firm">${esc(s.firm_name||"不明")}</span>
+      ${yr ? `<span class="badge b-year">${esc(yr)}</span>` : ""}
+      ${ministryBadge}
+    </div>
+    ${allBadges ? `<div class="card-tags">${allBadges}</div>` : ""}
+    ${highlightHtml}
+    <div class="card-footer">
+      <div class="card-meta">
+        <span class="ft-badge ${ftClass(ft)}">${esc(ft.toUpperCase())}</span>
+        ${stBadge}
+        ${(s.slide_count||0) > 0 ? `<span>📄 ${s.slide_count}枚</span>` : ""}
+      </div>
+      <div class="card-actions">
+        <a href="${esc(s.url||"#")}" target="_blank" rel="noopener" class="dl-btn">DL</a>
+        <button class="bm-btn ${bm?"on":""}" data-id="${esc(s.id||"")}">${bm?"★":"☆"}</button>
+      </div>
     </div>
   </div>
 </div>`;
 }
 
 function attachBmEvents(container) {
-  container.querySelectorAll(".bm-btn").forEach(btn => {
-    btn.addEventListener("click", () => toggleBookmark(btn.dataset.id));
-  });
+  container.querySelectorAll(".bm-btn").forEach(btn => btn.addEventListener("click", () => toggleBookmark(btn.dataset.id)));
 }
 
-/* =====================================================
-   ブックマーク
-   ===================================================== */
+/* ===== ブックマーク ===== */
 function toggleBookmark(id) {
   if (!id) return;
   bookmarks.has(id) ? bookmarks.delete(id) : bookmarks.add(id);
   localStorage.setItem("cs_bookmarks", JSON.stringify([...bookmarks]));
-
   document.querySelectorAll(`.bm-btn[data-id="${id}"]`).forEach(btn => {
     const on = bookmarks.has(id);
     btn.textContent = on ? "★" : "☆";
     btn.classList.toggle("on", on);
   });
-
   if (currentView === "bookmarks") renderBookmarksView();
 }
 
-/* =====================================================
-   ブックマークビュー
-   ===================================================== */
 function renderBookmarksView() {
-  const bmSlides = allSlides.filter(s => bookmarks.has(s.id));
+  const bms  = allSlides.filter(s => bookmarks.has(s.id));
   const analysis = document.getElementById("bmAnalysis");
-  const grid     = document.getElementById("bmGrid");
-
-  if (bmSlides.length === 0) {
+  const grid = document.getElementById("bmGrid");
+  if (bms.length === 0) {
     analysis.innerHTML = "";
-    grid.innerHTML = `
-      <div class="empty-box">
-        <h3>ブックマークはありません</h3>
-        <p>カードの ☆ ボタンで追加できます</p>
-      </div>`;
+    grid.innerHTML = `<div class="empty-box"><h3>ブックマークはありません</h3><p>カードの ☆ ボタンで追加できます</p></div>`;
     return;
   }
-
-  // タグ傾向集計
   const tc = {};
-  bmSlides.forEach(s => {
-    const t = s.tags || {};
-    [...(t.structure||[]),...(t.design||[]),...(t.theme||[])].forEach(tag => {
-      tc[tag] = (tc[tag]||0) + 1;
-    });
-  });
+  bms.forEach(s => { [...(s.tags?.structure||[]),...(s.tags?.design||[]),...(s.tags?.theme||[])].forEach(t => { tc[t]=(tc[t]||0)+1; }); });
   const topTags = Object.entries(tc).sort((a,b)=>b[1]-a[1]).slice(0,5);
-
-  const msg = topTags.length > 0
-    ? `あなたは <strong>${topTags.map(([t])=>esc(t)).join("・")}</strong> 系をよく学んでいます`
-    : "ブックマークを増やすと学習傾向が表示されます";
-
   analysis.innerHTML = `
     <div class="bm-analysis">
-      <h3>学習傾向 — ${bmSlides.length}件ブックマーク済み</h3>
-      <div class="tendency-msg">${msg}</div>
-      ${topTags.length > 0 ? `
-      <div class="tendency-chips">
-        ${topTags.map(([tag,cnt]) => {
-          const cls = STRUCTURE_TAGS.includes(tag)?"b-struct":DESIGN_TAGS.includes(tag)?"b-design":"b-theme";
-          return `<span class="badge ${cls}">${esc(tag)} (${cnt})</span>`;
-        }).join("")}
-      </div>` : ""}
+      <h3>学習傾向 — ${bms.length}件ブックマーク済み</h3>
+      <div class="tendency-msg">${topTags.length > 0 ? `あなたは <strong>${topTags.map(([t])=>esc(t)).join("・")}</strong> 系をよく学んでいます` : "ブックマークを増やすと傾向が表示されます"}</div>
+      ${topTags.length > 0 ? `<div class="tendency-chips">${topTags.map(([tag,cnt]) => {
+        const cls = STRUCTURE_TAGS.includes(tag)?"b-struct":DESIGN_TAGS.includes(tag)?"b-design":"b-theme";
+        return `<span class="badge ${cls}">${esc(tag)} (${cnt})</span>`;
+      }).join("")}</div>` : ""}
     </div>`;
-
-  grid.innerHTML = bmSlides.map(s => renderCard(s)).join("");
+  grid.innerHTML = bms.map(s => renderCard(s)).join("");
   attachBmEvents(grid);
 }
 
-/* =====================================================
-   ファーム比較ビュー
-   ===================================================== */
 function renderComparisonView(theme) {
   const content = document.getElementById("compContent");
   const summary = document.getElementById("compSummary");
-
-  if (!theme) {
-    summary.textContent = "";
-    content.innerHTML = `
-      <div class="empty-box">
-        <h3>テーマを選択してください</h3>
-        <p>同じテーマを各ファームがどう構造化したか並べて確認できます</p>
-      </div>`;
-    return;
-  }
-
+  if (!theme) { summary.textContent=""; content.innerHTML=`<div class="empty-box"><h3>テーマを選択してください</h3></div>`; return; }
   const themed = allSlides.filter(s => (s.tags?.theme||[]).includes(theme));
-  if (themed.length === 0) {
-    summary.textContent = "";
-    content.innerHTML = `
-      <div class="empty-box">
-        <h3>「${esc(theme)}」の資料はまだありません</h3>
-      </div>`;
-    return;
-  }
-
-  // ファーム別グループ化
+  if (themed.length === 0) { summary.textContent=""; content.innerHTML=`<div class="empty-box"><h3>「${esc(theme)}」の資料はまだありません</h3></div>`; return; }
   const byFirm = {};
-  themed.forEach(s => {
-    const f = s.firm_name || "不明";
-    (byFirm[f] = byFirm[f]||[]).push(s);
-  });
-  const sorted = Object.entries(byFirm).sort((a,b) => b[1].length-a[1].length);
-
+  themed.forEach(s => { const f = s.firm_name||"不明"; (byFirm[f]=byFirm[f]||[]).push(s); });
+  const sorted = Object.entries(byFirm).sort((a,b)=>b[1].length-a[1].length);
   summary.textContent = `${themed.length}件 / ${sorted.length}ファーム`;
   content.innerHTML = sorted.map(([firm, slides]) => `
     <div class="comp-firm-section">
       <div class="comp-firm-title">🏢 ${esc(firm)} — ${slides.length}件</div>
-      <div class="comp-cards">
-        ${slides.slice(0, 8).map(s => renderCard(s)).join("")}
-      </div>
+      <div class="comp-cards">${slides.slice(0,8).map(s=>renderCard(s)).join("")}</div>
     </div>`).join("");
-
   attachBmEvents(content);
 }
 
-/* =====================================================
-   ビュー切り替え
-   ===================================================== */
+/* ===== ビュー切り替え ===== */
 function switchView(view) {
   currentView = view;
-  ["slides","comparison","bookmarks"].forEach(v => {
-    document.getElementById(v+"View").classList.toggle("active", v===view);
-  });
-  document.querySelectorAll(".nav-tab").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.view === view);
-  });
+  ["slides","comparison","bookmarks"].forEach(v => document.getElementById(v+"View").classList.toggle("active", v===view));
+  document.querySelectorAll(".nav-tab").forEach(btn => btn.classList.toggle("active", btn.dataset.view===view));
   if (view === "bookmarks")  renderBookmarksView();
   if (view === "comparison") renderComparisonView(document.getElementById("compThemeSelect").value);
   if (view === "slides")     applyAndRender();
 }
 
-/* =====================================================
-   モバイルサイドバー
-   ===================================================== */
+/* ===== モバイルサイドバー ===== */
 function openMobileSidebar() {
   const ms = document.getElementById("mobileSidebar");
   ms.innerHTML = document.getElementById("mainSidebar").innerHTML;
   document.getElementById("sidebarOverlay").classList.add("open");
-
-  // クローンしたチップ・selectにもイベントを再バインド
   ms.querySelectorAll(".chip[data-filter]").forEach(chip => {
-    const fkey = chip.dataset.filter;
-    const tag  = chip.dataset.tag;
-    const onC  = fkey==="structure"?"on-blue":fkey==="design"?"on-green":"on-orange";
-    if (filters[fkey]?.has(tag)) chip.classList.add(onC);
+    const fk = chip.dataset.filter, tag = chip.dataset.tag;
+    const onC = fk==="structure"?"on-blue":fk==="design"?"on-green":"on-orange";
+    if (filters[fk]?.has(tag)) chip.classList.add(onC);
     chip.addEventListener("click", () => {
-      const s = filters[fkey];
+      const s = filters[fk];
       if (s.has(tag)) { s.delete(tag); chip.classList.remove(onC); }
       else            { s.add(tag);    chip.classList.add(onC); }
-      syncSidebarState();
       applyAndRender();
     });
   });
-
   ms.querySelectorAll(".chip[data-val]").forEach(el => {
-    const val = el.dataset.val;
-    if (filters.fileType.has(val)) el.classList.add("on-blue");
+    if (filters.fileType.has(el.dataset.val)) el.classList.add("on-blue");
     el.addEventListener("click", () => toggleTypeFilter(el));
   });
-
-  const ms_year = ms.querySelector("#yearSelect");
-  const ms_firm = ms.querySelector("#firmSelect");
-  if (ms_year) {
-    ms_year.value = filters.year;
-    ms_year.addEventListener("change", e => { filters.year = e.target.value; applyAndRender(); });
-  }
-  if (ms_firm) {
-    ms_firm.value = filters.firm;
-    ms_firm.addEventListener("change", e => { filters.firm = e.target.value; applyAndRender(); });
-  }
-
-  const ms_clear = ms.querySelector("#clearBtn");
-  if (ms_clear) ms_clear.addEventListener("click", clearFilters);
-}
-
-function syncSidebarState() {
-  // モバイルとデスクトップのチップ状態を同期（再レンダー）
-  document.querySelectorAll(".chip[data-filter]").forEach(chip => {
-    const fk   = chip.dataset.filter;
-    const tag  = chip.dataset.tag;
-    const onC  = fk==="structure"?"on-blue":fk==="design"?"on-green":"on-orange";
-    chip.classList.toggle(onC, filters[fk]?.has(tag)||false);
+  ["yearSelect","firmSelect","ministrySelect"].forEach(id => {
+    const el = ms.querySelector(`#${id}`);
+    if (el) {
+      el.value = filters[id.replace("Select","")];
+      el.addEventListener("change", e => { filters[id.replace("Select","")] = e.target.value; applyAndRender(); });
+    }
   });
+  const mc = ms.querySelector("#clearBtn");
+  if (mc) mc.addEventListener("click", clearFilters);
 }
-
 document.getElementById("sidebarOverlay").addEventListener("click", e => {
-  if (e.target === e.currentTarget) {
-    document.getElementById("sidebarOverlay").classList.remove("open");
-  }
+  if (e.target === e.currentTarget) document.getElementById("sidebarOverlay").classList.remove("open");
 });
 
-/* =====================================================
-   フィルターリセット
-   ===================================================== */
+/* ===== フィルターリセット ===== */
 function clearFilters() {
-  filters.text = "";
-  filters.structure.clear();
-  filters.design.clear();
-  filters.theme.clear();
-  filters.year  = "";
-  filters.firm  = "";
-  filters.fileType.clear();
-  currentSort = "newest";
-
-  document.getElementById("searchInput").value = "";
-  document.getElementById("sortSelect").value  = "newest";
-  document.getElementById("yearSelect").value  = "";
-  document.getElementById("firmSelect").value  = "";
-
-  document.querySelectorAll(".chip.on-blue,.chip.on-green,.chip.on-orange").forEach(el =>
-    el.classList.remove("on-blue","on-green","on-orange"));
-
+  filters.text=""; filters.structure.clear(); filters.design.clear(); filters.theme.clear();
+  filters.year=""; filters.firm=""; filters.ministry=""; filters.fileType.clear(); filters.slideType="";
+  currentSort="newest";
+  document.getElementById("searchInput").value="";
+  document.getElementById("sortSelect").value="newest";
+  document.getElementById("yearSelect").value="";
+  document.getElementById("firmSelect").value="";
+  document.getElementById("ministrySelect").value="";
+  document.querySelectorAll(".chip.on-blue,.chip.on-green,.chip.on-orange").forEach(el => el.classList.remove("on-blue","on-green","on-orange"));
   applyAndRender();
 }
 
-/* =====================================================
-   イベント
-   ===================================================== */
-document.getElementById("searchInput").addEventListener("input", e => {
-  filters.text = e.target.value.trim();
-  applyAndRender();
-});
-
-document.getElementById("sortSelect").addEventListener("change", e => {
-  currentSort = e.target.value;
-  applyAndRender();
-});
-
-document.getElementById("yearSelect").addEventListener("change", e => {
-  filters.year = e.target.value;
-  applyAndRender();
-});
-
-document.getElementById("firmSelect").addEventListener("change", e => {
-  filters.firm = e.target.value;
-  applyAndRender();
-});
-
+/* ===== イベント ===== */
+document.getElementById("searchInput").addEventListener("input", e => { filters.text = e.target.value.trim(); applyAndRender(); });
+document.getElementById("sortSelect").addEventListener("change", e => { currentSort = e.target.value; applyAndRender(); });
+document.getElementById("yearSelect").addEventListener("change", e => { filters.year = e.target.value; applyAndRender(); });
+document.getElementById("firmSelect").addEventListener("change", e => { filters.firm = e.target.value; applyAndRender(); });
+document.getElementById("ministrySelect").addEventListener("change", e => { filters.ministry = e.target.value; applyAndRender(); });
 document.getElementById("clearBtn").addEventListener("click", clearFilters);
-
 document.getElementById("mobileFilterBtn").addEventListener("click", openMobileSidebar);
+document.querySelectorAll(".nav-tab").forEach(btn => btn.addEventListener("click", () => switchView(btn.dataset.view)));
+document.getElementById("compThemeSelect").addEventListener("change", e => renderComparisonView(e.target.value));
 
-document.querySelectorAll(".nav-tab").forEach(btn => {
-  btn.addEventListener("click", () => switchView(btn.dataset.view));
-});
-
-document.getElementById("compThemeSelect").addEventListener("change", e => {
-  renderComparisonView(e.target.value);
-});
-
-/* =====================================================
-   起動
-   ===================================================== */
+/* ===== 起動 ===== */
 loadData();
 </script>
 </body>
