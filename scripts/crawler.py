@@ -2,9 +2,10 @@
 経産省委託調査報告書クローラー
 
 取得戦略（優先順位順）：
-1. METI サイトマップ XML から PDF/PPT リンクを直接抽出
-2. METI の主要レポートページ群を横断スキャン
-3. NDL（国立国会図書館）検索 API で補完
+0. Playwright で METI JS ダッシュボードをレンダリングして PDF/PPT リンクを抽出
+1. METI サイトマップ XML から PDF/PPT リンクを直接抽出（静的 HTTP）
+2. METI の主要レポートページ群を横断スキャン（静的 HTTP）
+3. NDL（国立国会図書館）検索 API で補完（常に実行）
 """
 import hashlib
 import logging
@@ -30,17 +31,22 @@ HEADERS = {
 }
 METI_BASE = "https://www.meti.go.jp"
 
-# サイトマップ XML の候補 URL
-SITEMAP_URLS = [
-    "https://www.meti.go.jp/sitemap.xml",
-    "https://www.meti.go.jp/sitemap_index.xml",
+# Playwright でレンダリングする METI ページ（JS ダッシュボード）
+METI_PLAYWRIGHT_PAGES = [
+    "https://www.meti.go.jp/topic/data/e90622aj.html",
 ]
 
-# PDF/PPT を含む可能性が高い METI ページのパス
+# 静的 HTML スキャン対象の METI ページパス
 METI_REPORT_PAGES = [
     "/report/whitepaper/index.html",
     "/policy/economy/keiei_innovation/sangyokinyu/houkokusyo.html",
     "/topic/data/e90622aj.html",
+]
+
+# サイトマップ XML の候補 URL
+SITEMAP_URLS = [
+    "https://www.meti.go.jp/sitemap.xml",
+    "https://www.meti.go.jp/sitemap_index.xml",
 ]
 
 # NDL 検索 API（SRU）
@@ -48,26 +54,39 @@ NDL_SRU_URL = "https://ndlsearch.ndl.go.jp/api/sru"
 
 # ファーム名検出パターン（部分一致）
 FIRM_PATTERNS = [
-    ("McKinsey", ["McKinsey", "マッキンゼー"]),
+    ("McKinsey", ["McKinsey", "マッキンゼー", "マッキンゼイ"]),
     ("BCG", ["BCG", "ボストンコンサルティング", "Boston Consulting"]),
-    ("Deloitte", ["デロイト", "Deloitte", "デロイトトーマツ"]),
-    ("PwC", ["PwC", "プライスウォーター"]),
+    ("Deloitte", ["デロイト", "Deloitte", "デロイトトーマツ", "DTT"]),
+    ("PwC", ["PwC", "プライスウォーター", "PricewaterhouseCoopers"]),
     ("Accenture", ["アクセンチュア", "Accenture"]),
-    ("NRI", ["NRI", "野村総合研究所"]),
+    ("NRI", ["NRI", "野村総合研究所", "野村総研"]),
     ("三菱UFJリサーチ", ["三菱UFJ", "MURC", "三菱UFJリサーチ"]),
-    ("KPMG", ["KPMG"]),
-    ("EY", ["EY", "アーンスト"]),
+    ("KPMG", ["KPMG", "あずさ監査法人"]),
+    ("EY", ["EY", "アーンスト", "Ernst & Young", "新日本監査法人"]),
     ("Roland Berger", ["ローランドベルガー", "Roland Berger"]),
     ("A.T. Kearney", ["ATカーニー", "A.T. Kearney", "Kearney"]),
     ("Bain", ["Bain", "ベイン"]),
     ("IBM", ["IBM", "日本IBM"]),
     ("三菱総合研究所", ["三菱総合研究所", "MRI"]),
-    ("みずほリサーチ", ["みずほリサーチ", "みずほ総合研究所"]),
+    ("みずほリサーチ", ["みずほリサーチ", "みずほ総合研究所", "みずほ情報総研"]),
     ("富士通総研", ["富士通総研", "FRI"]),
     ("日立コンサルティング", ["日立コンサルティング"]),
-    ("NTTデータ", ["NTTデータ", "NTT DATA"]),
+    ("NTTデータ", ["NTTデータ経営研究所", "NTT DATA"]),
     ("矢野経済研究所", ["矢野経済研究所"]),
-    ("PRI", ["政策研究所", "PRI"]),
+    ("日本総研", ["日本総研", "日本総合研究所", "JRI"]),
+    ("PwCコンサルティング", ["PwCコンサルティング"]),
+    ("Strategy&", ["Strategy&", "ストラテジー"]),
+    ("A.D. Little", ["A.D.リトル", "ADリトル", "Arthur D. Little"]),
+    ("コーポレイトディレクション", ["コーポレイトディレクション", "CDI"]),
+    ("ベリングポイント", ["ベリングポイント", "BearingPoint"]),
+    ("パシフィックコンサルタンツ", ["パシフィックコンサルタンツ"]),
+    ("大和総研", ["大和総研", "大和総合研究所"]),
+    ("農林中金総合研究所", ["農林中金総研"]),
+    ("価値総合研究所", ["価値総合研究所"]),
+    ("産業能率大学", ["産業能率大学"]),
+    ("電通総研", ["電通総研", "電通国際情報サービス"]),
+    ("シード・プランニング", ["シード・プランニング"]),
+    ("エヌ・ティ・ティ・データ経営研究所", ["NTTデータ経営研究所"]),
 ]
 
 
@@ -89,6 +108,15 @@ def _extract_fiscal_year(text: str) -> str:
 
 
 def _extract_firm_name(text: str) -> str:
+    # 委託先パターンを最優先で試みる
+    m = re.search(r"委託先[：:]\s*(.{2,20}?)(?:株式会社|有限会社|合同会社|一般社団|$)", text)
+    if m:
+        candidate = m.group(1).strip()
+        if candidate:
+            for firm_name, patterns in FIRM_PATTERNS:
+                for pattern in patterns:
+                    if pattern in candidate:
+                        return firm_name
     for firm_name, patterns in FIRM_PATTERNS:
         for pattern in patterns:
             if pattern in text:
@@ -121,7 +149,7 @@ def _make_entry(title: str, file_url: str, context_text: str = "") -> dict:
     }
 
 
-def _get(url: str, timeout: int = 8) -> Optional[requests.Response]:
+def _get(url: str, timeout: int = 15) -> Optional[requests.Response]:
     try:
         r = requests.get(url, headers=HEADERS, timeout=timeout)
         r.raise_for_status()
@@ -130,6 +158,73 @@ def _get(url: str, timeout: int = 8) -> Optional[requests.Response]:
     except Exception as e:
         logger.warning(f"取得失敗 {url}: {e}")
         return None
+
+
+# ── 戦略0: Playwright で METI JS ページをレンダリング ──────────────
+
+def _crawl_meti_playwright(existing_urls: set) -> list:
+    """
+    Playwright で JavaScript レンダリングされた METI ページから
+    PDF/PPT リンクとその周辺テキスト（ファーム名・年度）を抽出する。
+    Playwright 未インストールまたは接続エラーの場合は空リストを返す。
+    """
+    results = []
+    try:
+        from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+    except ImportError:
+        logger.info("Playwright 未インストール。戦略0をスキップします。")
+        return results
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=HEADERS["User-Agent"],
+                ignore_https_errors=True,
+            )
+            page = context.new_page()
+
+            for target_url in METI_PLAYWRIGHT_PAGES:
+                try:
+                    logger.info(f"Playwright: {target_url}")
+                    page.goto(target_url, wait_until="networkidle", timeout=30000)
+                    page.wait_for_timeout(2000)
+
+                    # 全リンクを取得
+                    links = page.query_selector_all("a[href]")
+                    for link in links:
+                        try:
+                            href = link.get_attribute("href") or ""
+                            if not re.search(r"\.(pdf|ppt|pptx)$", href, re.I):
+                                continue
+                            abs_url = href if href.startswith("http") else urljoin(METI_BASE, href)
+                            if abs_url in existing_urls:
+                                continue
+
+                            link_text = (link.inner_text() or "").strip()
+                            # 親要素のテキスト（ファーム名・年度が入ることが多い）
+                            parent = link.evaluate("el => el.closest('tr,li,div,p') ? el.closest('tr,li,div,p').innerText : ''")
+                            context_text = (parent or link_text)[:500]
+
+                            title = link_text or abs_url.split("/")[-1]
+                            entry = _make_entry(title, abs_url, context_text)
+                            results.append(entry)
+                            existing_urls.add(abs_url)
+                        except Exception:
+                            continue
+
+                    logger.info(f"Playwright: {target_url} → {len(results)} 件取得")
+
+                except PWTimeout:
+                    logger.warning(f"Playwright タイムアウト: {target_url}")
+                except Exception as e:
+                    logger.warning(f"Playwright エラー ({target_url}): {e}")
+
+            browser.close()
+    except Exception as e:
+        logger.warning(f"Playwright 全体エラー: {e}")
+
+    return results
 
 
 # ── 戦略1: サイトマップ XML ──────────────────────────────────────
@@ -144,7 +239,6 @@ def _crawl_sitemap(existing_urls: set) -> list:
         try:
             root = ET.fromstring(r.content)
             ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-            # サイトマップインデックスの場合
             for sitemap in root.findall(".//sm:sitemap/sm:loc", ns):
                 child_url = sitemap.text.strip()
                 if any(k in child_url for k in ["report", "topic", "policy"]):
@@ -152,7 +246,6 @@ def _crawl_sitemap(existing_urls: set) -> list:
                     if child_r:
                         results.extend(_extract_from_sitemap_xml(child_r.content, existing_urls))
                         time.sleep(0.3)
-            # 通常のサイトマップ
             results.extend(_extract_from_sitemap_xml(r.content, existing_urls))
             if results:
                 logger.info(f"サイトマップから {len(results)} 件取得")
@@ -181,7 +274,7 @@ def _extract_from_sitemap_xml(content: bytes, existing_urls: set) -> list:
 # ── 戦略2: METI ページ横断スキャン ───────────────────────────────
 
 def _crawl_meti_pages(existing_urls: set) -> list:
-    """METI の主要ページを横断して PDF/PPT リンクを抽出する"""
+    """METI の主要ページを横断して PDF/PPT リンクを抽出する（静的 HTML）"""
     results = []
     visited_pages = set()
 
@@ -207,7 +300,6 @@ def _crawl_meti_pages(existing_urls: set) -> list:
                     results.append(_make_entry(title, abs_url, parent_text))
                     existing_urls.add(abs_url)
 
-            # 同一ドメインの report/topic/policy ページは再帰スキャン
             elif (abs_url.startswith(METI_BASE)
                   and abs_url.endswith(".html")
                   and any(k in abs_url for k in ["/report/", "/topic/", "/policy/", "/research/"])
@@ -228,7 +320,7 @@ def _crawl_meti_pages(existing_urls: set) -> list:
 
 # ── 戦略3: NDL 検索 API ──────────────────────────────────────────
 
-def _crawl_ndl(existing_urls: set, max_records: int = 100) -> list:
+def _crawl_ndl(existing_urls: set, max_records: int = 500) -> list:
     """
     国立国会図書館 SRU API で経産省委託調査報告書を検索する。
 
@@ -261,13 +353,11 @@ def _crawl_ndl(existing_urls: set, max_records: int = 100) -> list:
                 if rec_data is None:
                     continue
 
-                # recordData の text は HTML エンコードされた RDF/XML 文字列
                 inner_text = (rec_data.text or "").strip()
                 if not inner_text:
                     continue
                 inner = ET.fromstring(inner_text)
 
-                # カタログ URL を BibAdminResource の rdf:about から取得
                 bib_admin = inner.find(f"{{{DCNDL}}}BibAdminResource")
                 if bib_admin is None:
                     continue
@@ -280,9 +370,9 @@ def _crawl_ndl(existing_urls: set, max_records: int = 100) -> list:
                 published_date = ""
                 creator = ""
                 series_title = ""
+                description = ""
 
                 if bib_res is not None:
-                    # タイトル（dcterms:title 優先、なければ dc:title/rdf:value）
                     t = bib_res.find(f"{{{DCTERMS}}}title")
                     if t is not None:
                         title = (t.text or "").strip()
@@ -293,27 +383,28 @@ def _crawl_ndl(existing_urls: set, max_records: int = 100) -> list:
                             if rdf_v is not None:
                                 title = (rdf_v.text or "").strip()
 
-                    # 発行日
                     d = bib_res.find(f"{{{DCTERMS}}}issued")
                     if d is not None:
                         published_date = (d.text or "").strip()
 
-                    # 作成者（ファーム名抽出に使用）
                     c = bib_res.find(f"{{{DC}}}creator")
                     if c is not None:
                         creator = (c.text or "").strip()
 
-                    # シリーズタイトル（年度抽出に使用）
                     s = bib_res.find(f"{{{DCNDL}}}seriesTitle")
                     if s is not None:
                         rdf_v = s.find(f".//{{{RDF}}}value")
                         if rdf_v is not None:
                             series_title = (rdf_v.text or "").strip()
 
-                context = creator + " " + series_title
+                    # 説明文（ファーム名が含まれることがある）
+                    for desc_el in bib_res.findall(f"{{{DCTERMS}}}description"):
+                        description += (desc_el.text or "") + " "
+
+                context = creator + " " + series_title + " " + description
                 entry = _make_entry(title or entry_url, entry_url, context)
                 entry["published_date"] = published_date
-                entry["file_type"] = "html"  # NDL カタログページ
+                entry["file_type"] = "html"
 
                 results.append(entry)
                 existing_urls.add(entry_url)
@@ -332,16 +423,25 @@ def _crawl_ndl(existing_urls: set, max_records: int = 100) -> list:
 
 def crawl(existing_urls: Optional[set] = None) -> list:
     """
-    3段階戦略でクロールし、新規エントリーを返す。
+    4段階戦略でクロールし、新規エントリーを返す。
 
+    0. Playwright で METI JS ページをレンダリング（最優先）
     1. METI サイトマップ XML
     2. METI ページ横断スキャン
-    3. NDL 検索 API
+    3. NDL 検索 API（常に実行）
     """
     if existing_urls is None:
         existing_urls = set()
 
     all_results = []
+
+    # 戦略0: Playwright
+    try:
+        r0 = _crawl_meti_playwright(existing_urls)
+        all_results.extend(r0)
+        logger.info(f"[戦略0 Playwright] {len(r0)} 件")
+    except Exception as e:
+        logger.error(f"戦略0 エラー: {e}")
 
     # 戦略1
     try:
@@ -359,7 +459,7 @@ def crawl(existing_urls: Optional[set] = None) -> list:
     except Exception as e:
         logger.error(f"戦略2 エラー: {e}")
 
-    # 戦略3: NDL（METI が取れない場合も含め常に実行）
+    # 戦略3: NDL（常に実行）
     try:
         r3 = _crawl_ndl(existing_urls)
         all_results.extend(r3)
