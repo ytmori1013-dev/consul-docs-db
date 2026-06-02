@@ -469,27 +469,36 @@ def _crawl_ndl(existing_urls: set, max_records: int = 1000) -> list:
                 "recordSchema": "dcndl",
                 "startRecord": start,
             }
-            try:
-                r = requests.get(NDL_SRU_URL, params=params, headers=HEADERS, timeout=30)
-                r.raise_for_status()
-                root = ET.fromstring(r.content)
-
-                # 総件数を取得してページネーション上限を把握
-                num_el = root.find(".//srw:numberOfRecords", ns)
-                total = int(num_el.text) if num_el is not None and num_el.text else 0
-
-                batch_results = _parse_ndl_records(root, ns, existing_urls)
-                results.extend(batch_results)
-                logger.info(f"NDL '{query}' start={start}: {len(batch_results)} 件（累計 {len(results)} 件 / 総 {total} 件）")
-
-                if len(batch_results) < batch or start + batch > min(total, max_records):
+            root = None
+            for attempt in range(3):
+                try:
+                    r = requests.get(NDL_SRU_URL, params=params, headers=HEADERS, timeout=60)
+                    r.raise_for_status()
+                    root = ET.fromstring(r.content)
                     break
-                start += batch
-                time.sleep(1)
+                except Exception as e:
+                    if attempt < 2:
+                        wait = (attempt + 1) * 5
+                        logger.warning(f"NDL API リトライ {attempt + 1}/3 (wait {wait}s): {e}")
+                        time.sleep(wait)
+                    else:
+                        logger.warning(f"NDL API エラー (query={query}, start={start}): {e}")
 
-            except Exception as e:
-                logger.warning(f"NDL API エラー (query={query}, start={start}): {e}")
+            if root is None:
                 break
+
+            # 総件数を取得してページネーション上限を把握
+            num_el = root.find(".//srw:numberOfRecords", ns)
+            total = int(num_el.text) if num_el is not None and num_el.text else 0
+
+            batch_results = _parse_ndl_records(root, ns, existing_urls)
+            results.extend(batch_results)
+            logger.info(f"NDL '{query}' start={start}: {len(batch_results)} 件（累計 {len(results)} 件 / 総 {total} 件）")
+
+            if len(batch_results) < batch or start + batch > min(total, max_records):
+                break
+            start += batch
+            time.sleep(1)
 
     logger.info(f"NDL 合計: {len(results)} 件取得")
     return results
