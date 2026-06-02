@@ -350,6 +350,7 @@ def _parse_ndl_records(root, ns: dict, existing_urls: set) -> list:
     DCTERMS = "http://purl.org/dc/terms/"
     DC = "http://purl.org/dc/elements/1.1/"
     RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    FOAF = "http://xmlns.com/foaf/0.1/"
     results = []
 
     for record in root.findall(".//srw:record", ns):
@@ -377,7 +378,9 @@ def _parse_ndl_records(root, ns: dict, existing_urls: set) -> list:
             publisher = ""
             series_title = ""
             description = ""
+            responsibility = ""
             subjects = []
+            contributors = []
 
             if bib_res is not None:
                 t = bib_res.find(f"{{{DCTERMS}}}title")
@@ -394,9 +397,38 @@ def _parse_ndl_records(root, ns: dict, existing_urls: set) -> list:
                 if d is not None:
                     published_date = (d.text or "").strip()
 
-                c = bib_res.find(f"{{{DC}}}creator")
-                if c is not None:
-                    creator = (c.text or "").strip()
+                # creator: dc:creator テキスト + foaf:name ネスト要素
+                creator_names = []
+                for c_el in bib_res.findall(f"{{{DC}}}creator"):
+                    if c_el.text and c_el.text.strip():
+                        creator_names.append(c_el.text.strip())
+                    for fn in c_el.findall(f".//{{{FOAF}}}name"):
+                        if fn.text and fn.text.strip():
+                            creator_names.append(fn.text.strip())
+                for c_el in bib_res.findall(f"{{{DCTERMS}}}creator"):
+                    for fn in c_el.findall(f".//{{{FOAF}}}name"):
+                        if fn.text and fn.text.strip():
+                            creator_names.append(fn.text.strip())
+                creator = " ".join(creator_names)
+
+                # contributor: 委託先・執筆者等が入ることがある
+                for contrib_el in bib_res.findall(f"{{{DC}}}contributor"):
+                    if contrib_el.text and contrib_el.text.strip():
+                        contributors.append(contrib_el.text.strip())
+                    for fn in contrib_el.findall(f".//{{{FOAF}}}name"):
+                        if fn.text and fn.text.strip():
+                            contributors.append(fn.text.strip())
+                for contrib_el in bib_res.findall(f"{{{DCTERMS}}}contributor"):
+                    for fn in contrib_el.findall(f".//{{{FOAF}}}name"):
+                        if fn.text and fn.text.strip():
+                            contributors.append(fn.text.strip())
+
+                # responsibility: 責任表示（タイトルページの "○○作成" 等を含む）
+                for r_el in bib_res.findall(f"{{{DCNDL}}}responsibility"):
+                    rv = r_el.find(f".//{{{RDF}}}value")
+                    rt = (rv.text if rv is not None else r_el.text) or ""
+                    if rt.strip():
+                        responsibility += rt.strip() + " "
 
                 p = bib_res.find(f"{{{DC}}}publisher")
                 if p is not None:
@@ -426,7 +458,10 @@ def _parse_ndl_records(root, ns: dict, existing_urls: set) -> list:
                     if subj_text.strip():
                         subjects.append(subj_text.strip())
 
-            context = " ".join(filter(None, [creator, publisher, series_title, description, " ".join(subjects)]))
+            context = " ".join(filter(None, [
+                responsibility, creator, " ".join(contributors),
+                publisher, series_title, description, " ".join(subjects),
+            ]))
             entry = _make_entry(title or entry_url, entry_url, context)
             entry["published_date"] = published_date
             entry["file_type"] = "html"
@@ -453,19 +488,39 @@ def _crawl_ndl(existing_urls: set, max_records: int = 1000) -> list:
     ns = {"srw": "http://www.loc.gov/zing/srw/"}
     results = []
     # 複数クエリで幅広く取得
-    queries = [
+    # METI が creator のケース
+    meti_queries = [
         'creator="経済産業省" AND title="委託調査"',
         'creator="経済産業省" AND title="委託事業"',
+        'creator="経済産業省" AND title="報告書"',
+        'publisher="経済産業省" AND title="委託" AND title="調査"',
     ]
+    # コンサル会社が creator で METI 関連のケース（NDL では委託先が creator になることもある）
+    firm_queries = [
+        'creator="野村総合研究所" AND title="経済産業省"',
+        'creator="三菱UFJ" AND title="経済産業省"',
+        'creator="みずほ" AND title="経済産業省委託"',
+        'creator="アクセンチュア" AND title="経済産業省"',
+        'creator="デロイト" AND title="経済産業省"',
+        'creator="プライスウォーター" AND title="経済産業省"',
+        'creator="NRI" AND title="経済産業省委託"',
+        'creator="三菱総合研究所" AND title="経済産業省"',
+        'creator="矢野経済研究所" AND title="経済産業省"',
+        'creator="大和総研" AND title="経済産業省"',
+        'creator="日本総合研究所" AND title="経済産業省"',
+        'creator="電通総研" AND title="経済産業省"',
+        'creator="富士通総研" AND title="経済産業省"',
+    ]
+    queries = [(q, max_records) for q in meti_queries] + [(q, 200) for q in firm_queries]
 
-    for query in queries:
+    for query, q_max in queries:
         start = 1
-        batch = 500
-        while start <= max_records:
+        batch = min(500, q_max)
+        while start <= q_max:
             params = {
                 "operation": "searchRetrieve",
                 "query": query,
-                "maximumRecords": min(batch, max_records - start + 1),
+                "maximumRecords": min(batch, q_max - start + 1),
                 "recordSchema": "dcndl",
                 "startRecord": start,
             }
@@ -495,7 +550,7 @@ def _crawl_ndl(existing_urls: set, max_records: int = 1000) -> list:
             results.extend(batch_results)
             logger.info(f"NDL '{query}' start={start}: {len(batch_results)} 件（累計 {len(results)} 件 / 総 {total} 件）")
 
-            if len(batch_results) < batch or start + batch > min(total, max_records):
+            if len(batch_results) < batch or start + batch > min(total, q_max):
                 break
             start += batch
             time.sleep(1)
