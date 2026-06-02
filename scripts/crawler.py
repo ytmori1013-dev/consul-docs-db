@@ -107,6 +107,30 @@ def _extract_fiscal_year(text: str) -> str:
     return ""
 
 
+def _date_to_fiscal_year(date_str: str) -> str:
+    """YYYY-MM-DD または YYYY 形式の日付を日本の年度（元号）に変換する"""
+    if not date_str:
+        return ""
+    try:
+        s = date_str.strip()[:10]
+        if len(s) == 4:
+            year = int(s)
+            # 年のみの場合は当該年度とみなす（3月以前は前年度扱い不可 → そのまま使う）
+            fiscal = year
+        else:
+            parts = s.split("-")
+            year, month = int(parts[0]), int(parts[1])
+            # 日本の年度は4月始まり。3月以前は前年度
+            fiscal = year if month >= 4 else year - 1
+        if fiscal >= 2019:
+            return f"令和{fiscal - 2018}"
+        elif fiscal >= 1989:
+            return f"平成{fiscal - 1988}"
+        return ""
+    except Exception:
+        return ""
+
+
 def _extract_firm_name(text: str) -> str:
     # 委託先パターンを最優先で試みる
     m = re.search(r"委託先[：:]\s*(.{2,20}?)(?:株式会社|有限会社|合同会社|一般社団|$)", text)
@@ -320,102 +344,154 @@ def _crawl_meti_pages(existing_urls: set) -> list:
 
 # ── 戦略3: NDL 検索 API ──────────────────────────────────────────
 
-def _crawl_ndl(existing_urls: set, max_records: int = 500) -> list:
-    """
-    国立国会図書館 SRU API で経産省委託調査報告書を検索する。
-
-    recordData は HTML エンコードされた文字列として返るため、
-    テキストを再パースして rdf:about の URL とタイトルを抽出する。
-    """
+def _parse_ndl_records(root, ns: dict, existing_urls: set) -> list:
+    """NDL SRU レスポンスの srw:records をパースしてエントリーリストを返す"""
     DCNDL = "http://ndl.go.jp/dcndl/terms/"
     DCTERMS = "http://purl.org/dc/terms/"
     DC = "http://purl.org/dc/elements/1.1/"
     RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-
     results = []
-    query = 'creator="経済産業省" AND title="委託調査"'
-    params = {
-        "operation": "searchRetrieve",
-        "query": query,
-        "maximumRecords": max_records,
-        "recordSchema": "dcndl",
-        "startRecord": 1,
-    }
-    try:
-        r = requests.get(NDL_SRU_URL, params=params, headers=HEADERS, timeout=30)
-        r.raise_for_status()
-        root = ET.fromstring(r.content)
-        ns = {"srw": "http://www.loc.gov/zing/srw/"}
 
-        for record in root.findall(".//srw:record", ns):
-            try:
-                rec_data = record.find(".//srw:recordData", ns)
-                if rec_data is None:
-                    continue
-
-                inner_text = (rec_data.text or "").strip()
-                if not inner_text:
-                    continue
-                inner = ET.fromstring(inner_text)
-
-                bib_admin = inner.find(f"{{{DCNDL}}}BibAdminResource")
-                if bib_admin is None:
-                    continue
-                entry_url = bib_admin.get(f"{{{RDF}}}about", "")
-                if not entry_url or entry_url in existing_urls:
-                    continue
-
-                bib_res = inner.find(f"{{{DCNDL}}}BibResource")
-                title = ""
-                published_date = ""
-                creator = ""
-                series_title = ""
-                description = ""
-
-                if bib_res is not None:
-                    t = bib_res.find(f"{{{DCTERMS}}}title")
-                    if t is not None:
-                        title = (t.text or "").strip()
-                    if not title:
-                        dc_t = bib_res.find(f"{{{DC}}}title")
-                        if dc_t is not None:
-                            rdf_v = dc_t.find(f".//{{{RDF}}}value")
-                            if rdf_v is not None:
-                                title = (rdf_v.text or "").strip()
-
-                    d = bib_res.find(f"{{{DCTERMS}}}issued")
-                    if d is not None:
-                        published_date = (d.text or "").strip()
-
-                    c = bib_res.find(f"{{{DC}}}creator")
-                    if c is not None:
-                        creator = (c.text or "").strip()
-
-                    s = bib_res.find(f"{{{DCNDL}}}seriesTitle")
-                    if s is not None:
-                        rdf_v = s.find(f".//{{{RDF}}}value")
-                        if rdf_v is not None:
-                            series_title = (rdf_v.text or "").strip()
-
-                    # 説明文（ファーム名が含まれることがある）
-                    for desc_el in bib_res.findall(f"{{{DCTERMS}}}description"):
-                        description += (desc_el.text or "") + " "
-
-                context = creator + " " + series_title + " " + description
-                entry = _make_entry(title or entry_url, entry_url, context)
-                entry["published_date"] = published_date
-                entry["file_type"] = "html"
-
-                results.append(entry)
-                existing_urls.add(entry_url)
-
-            except Exception:
+    for record in root.findall(".//srw:record", ns):
+        try:
+            rec_data = record.find(".//srw:recordData", ns)
+            if rec_data is None:
                 continue
 
-        logger.info(f"NDL API から {len(results)} 件取得")
-    except Exception as e:
-        logger.warning(f"NDL API エラー: {e}")
+            inner_text = (rec_data.text or "").strip()
+            if not inner_text:
+                continue
+            inner = ET.fromstring(inner_text)
 
+            bib_admin = inner.find(f"{{{DCNDL}}}BibAdminResource")
+            if bib_admin is None:
+                continue
+            entry_url = bib_admin.get(f"{{{RDF}}}about", "")
+            if not entry_url or entry_url in existing_urls:
+                continue
+
+            bib_res = inner.find(f"{{{DCNDL}}}BibResource")
+            title = ""
+            published_date = ""
+            creator = ""
+            publisher = ""
+            series_title = ""
+            description = ""
+            subjects = []
+
+            if bib_res is not None:
+                t = bib_res.find(f"{{{DCTERMS}}}title")
+                if t is not None:
+                    title = (t.text or "").strip()
+                if not title:
+                    dc_t = bib_res.find(f"{{{DC}}}title")
+                    if dc_t is not None:
+                        rdf_v = dc_t.find(f".//{{{RDF}}}value")
+                        if rdf_v is not None:
+                            title = (rdf_v.text or "").strip()
+
+                d = bib_res.find(f"{{{DCTERMS}}}issued")
+                if d is not None:
+                    published_date = (d.text or "").strip()
+
+                c = bib_res.find(f"{{{DC}}}creator")
+                if c is not None:
+                    creator = (c.text or "").strip()
+
+                p = bib_res.find(f"{{{DC}}}publisher")
+                if p is not None:
+                    publisher = (p.text or "").strip()
+                if not publisher:
+                    p2 = bib_res.find(f"{{{DCTERMS}}}publisher")
+                    if p2 is not None:
+                        publisher = (p2.text or "").strip()
+
+                s = bib_res.find(f"{{{DCNDL}}}seriesTitle")
+                if s is not None:
+                    rdf_v = s.find(f".//{{{RDF}}}value")
+                    if rdf_v is not None:
+                        series_title = (rdf_v.text or "").strip()
+
+                for desc_el in bib_res.findall(f"{{{DCTERMS}}}description"):
+                    description += (desc_el.text or "") + " "
+
+                for subj_el in bib_res.findall(f"{{{DCTERMS}}}subject"):
+                    sv = subj_el.find(f".//{{{RDF}}}value")
+                    subj_text = (sv.text if sv is not None else subj_el.text) or ""
+                    if subj_text.strip():
+                        subjects.append(subj_text.strip())
+                for subj_el in bib_res.findall(f"{{{DC}}}subject"):
+                    sv = subj_el.find(f".//{{{RDF}}}value")
+                    subj_text = (sv.text if sv is not None else subj_el.text) or ""
+                    if subj_text.strip():
+                        subjects.append(subj_text.strip())
+
+            context = " ".join(filter(None, [creator, publisher, series_title, description, " ".join(subjects)]))
+            entry = _make_entry(title or entry_url, entry_url, context)
+            entry["published_date"] = published_date
+            entry["file_type"] = "html"
+
+            if not entry.get("fiscal_year") and published_date:
+                entry["fiscal_year"] = _date_to_fiscal_year(published_date)
+
+            results.append(entry)
+            existing_urls.add(entry_url)
+
+        except Exception:
+            continue
+
+    return results
+
+
+def _crawl_ndl(existing_urls: set, max_records: int = 1000) -> list:
+    """
+    国立国会図書館 SRU API で経産省委託調査報告書を検索する（ページネーション対応）。
+
+    recordData は HTML エンコードされた文字列として返るため、
+    テキストを再パースして rdf:about の URL とタイトルを抽出する。
+    """
+    ns = {"srw": "http://www.loc.gov/zing/srw/"}
+    results = []
+    # 複数クエリで幅広く取得
+    queries = [
+        'creator="経済産業省" AND title="委託調査"',
+        'creator="経済産業省" AND title="委託事業"',
+    ]
+
+    for query in queries:
+        start = 1
+        batch = 500
+        while start <= max_records:
+            params = {
+                "operation": "searchRetrieve",
+                "query": query,
+                "maximumRecords": min(batch, max_records - start + 1),
+                "recordSchema": "dcndl",
+                "startRecord": start,
+            }
+            try:
+                r = requests.get(NDL_SRU_URL, params=params, headers=HEADERS, timeout=30)
+                r.raise_for_status()
+                root = ET.fromstring(r.content)
+
+                # 総件数を取得してページネーション上限を把握
+                num_el = root.find(".//srw:numberOfRecords", ns)
+                total = int(num_el.text) if num_el is not None and num_el.text else 0
+
+                batch_results = _parse_ndl_records(root, ns, existing_urls)
+                results.extend(batch_results)
+                logger.info(f"NDL '{query}' start={start}: {len(batch_results)} 件（累計 {len(results)} 件 / 総 {total} 件）")
+
+                if len(batch_results) < batch or start + batch > min(total, max_records):
+                    break
+                start += batch
+                time.sleep(1)
+
+            except Exception as e:
+                logger.warning(f"NDL API エラー (query={query}, start={start}): {e}")
+                break
+
+    logger.info(f"NDL 合計: {len(results)} 件取得")
     return results
 
 
