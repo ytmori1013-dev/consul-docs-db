@@ -390,7 +390,7 @@ function updateStats(data) {
   const firms = new Set(allSlides.map(s => s.firm_name||"不明").filter(f => f !== "不明"));
   document.getElementById("firmCount").textContent = firms.size;
   const fc = {};
-  allSlides.forEach(s => { const f = s.firm_name||"不明"; fc[f] = (fc[f]||0)+1; });
+  allSlides.forEach(s => { const f = s.firm_name||"不明"; if (f !== "不明") fc[f] = (fc[f]||0)+1; });
   const top5 = Object.entries(fc).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const mx = top5[0]?.[1] || 1;
   document.getElementById("firmRanking").innerHTML = top5.map(([n,c]) => `
@@ -421,7 +421,7 @@ function buildFilters() {
   const ysel  = document.getElementById("yearSelect");
   years.forEach(y => ysel.append(Object.assign(document.createElement("option"), {value:y, textContent:y})));
 
-  const firms = [...new Set(allSlides.map(s => s.firm_name||"不明"))].sort((a,b)=>a.localeCompare(b,"ja"));
+  const firms = [...new Set(allSlides.map(s => s.firm_name||"不明").filter(f => f !== "不明"))].sort((a,b)=>a.localeCompare(b,"ja"));
   const fsel  = document.getElementById("firmSelect");
   firms.forEach(f => fsel.append(Object.assign(document.createElement("option"), {value:f, textContent:f})));
 
@@ -491,7 +491,7 @@ function applyFilters() {
   return allSlides.filter(s => {
     if (filters.text) {
       const q = filters.text.toLowerCase();
-      if (!((s.title||"")+(s.firm_name||"")).toLowerCase().includes(q)) return false;
+      if (!((s.title||"")+( s.firm_name||"" )).toLowerCase().includes(q)) return false;
     }
     if (filters.structure.size) {
       const st = s.tags?.structure || [];
@@ -560,8 +560,9 @@ function renderCard(s) {
   let thumbHtml = "";
   if (thumbs.length > 0) {
     thumbHtml = `<img class="card-thumb" src="${esc(thumbs[0])}" alt="サムネイル" loading="lazy">`;
-  } else if (ft !== "html") {
-    thumbHtml = `<div class="card-thumb-placeholder">${ft === "pptx" || ft === "ppt" ? "📊" : "📄"}</div>`;
+  } else {
+    const icon = ft === "pptx" || ft === "ppt" ? "📊" : ft === "html" ? "🌐" : "📄";
+    thumbHtml = `<div class="card-thumb-placeholder">${icon}</div>`;
   }
 
   // 構造タグ（◎/○マーク付き）
@@ -591,7 +592,7 @@ function renderCard(s) {
       <a href="${esc(s.url||"#")}" target="_blank" rel="noopener">${esc(s.title||"(タイトルなし)")}</a>
     </div>
     <div class="card-badges">
-      <span class="badge b-firm">${esc(s.firm_name||"不明")}</span>
+      ${(s.firm_name && s.firm_name !== "不明") ? `<span class="badge b-firm">${esc(s.firm_name)}</span>` : ""}
       ${yr ? `<span class="badge b-year">${esc(yr)}</span>` : ""}
       ${ministryBadge}
     </div>
@@ -683,9 +684,19 @@ function switchView(view) {
 }
 
 /* ===== モバイルサイドバー ===== */
+function closeMobileSidebar() {
+  document.getElementById("sidebarOverlay").classList.remove("open");
+}
 function openMobileSidebar() {
   const ms = document.getElementById("mobileSidebar");
   ms.innerHTML = document.getElementById("mainSidebar").innerHTML;
+  // 閉じるボタンを追加
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "✕ 閉じる";
+  closeBtn.className = "clear-btn";
+  closeBtn.style.marginTop = "12px";
+  closeBtn.addEventListener("click", closeMobileSidebar);
+  ms.appendChild(closeBtn);
   document.getElementById("sidebarOverlay").classList.add("open");
   ms.querySelectorAll(".chip[data-filter]").forEach(chip => {
     const fk = chip.dataset.filter, tag = chip.dataset.tag;
@@ -696,24 +707,41 @@ function openMobileSidebar() {
       if (s.has(tag)) { s.delete(tag); chip.classList.remove(onC); }
       else            { s.add(tag);    chip.classList.add(onC); }
       applyAndRender();
+      closeMobileSidebar();
     });
   });
   ms.querySelectorAll(".chip[data-val]").forEach(el => {
     if (filters.fileType.has(el.dataset.val)) el.classList.add("on-blue");
-    el.addEventListener("click", () => toggleTypeFilter(el));
+    el.addEventListener("click", () => { toggleTypeFilter(el); closeMobileSidebar(); });
+  });
+  ms.querySelectorAll(".chip[data-stype]").forEach(el => {
+    if (filters.slideType === el.dataset.stype) el.classList.add("on-blue");
+    el.addEventListener("click", () => {
+      const v = el.dataset.stype;
+      filters.slideType = filters.slideType === v ? "" : v;
+      applyAndRender();
+      closeMobileSidebar();
+    });
   });
   ["yearSelect","firmSelect","ministrySelect"].forEach(id => {
     const el = ms.querySelector(`#${id}`);
     if (el) {
       el.value = filters[id.replace("Select","")];
-      el.addEventListener("change", e => { filters[id.replace("Select","")] = e.target.value; applyAndRender(); });
+      el.addEventListener("change", e => {
+        filters[id.replace("Select","")] = e.target.value;
+        // デスクトップ側も同期
+        const desktop = document.getElementById(id);
+        if (desktop) desktop.value = e.target.value;
+        applyAndRender();
+        closeMobileSidebar();
+      });
     }
   });
   const mc = ms.querySelector("#clearBtn");
-  if (mc) mc.addEventListener("click", clearFilters);
+  if (mc) mc.addEventListener("click", () => { clearFilters(); closeMobileSidebar(); });
 }
 document.getElementById("sidebarOverlay").addEventListener("click", e => {
-  if (e.target === e.currentTarget) document.getElementById("sidebarOverlay").classList.remove("open");
+  if (e.target === e.currentTarget) closeMobileSidebar();
 });
 
 /* ===== フィルターリセット ===== */

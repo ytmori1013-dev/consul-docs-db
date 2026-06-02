@@ -498,6 +498,10 @@ def _parse_ndl_records(root, ns: dict, existing_urls: set, ministry: str = "") -
                 publisher, series_title, description, " ".join(subjects),
             ]))
             entry = _make_entry(title or entry_url, entry_url, context)
+            # creator が直接ファーム名を示す場合（firm_queries）は優先適用
+            firm_from_creator = detect_firm(creator) if creator else "不明"
+            if firm_from_creator != "不明":
+                entry["firm_name"] = firm_from_creator
             entry["published_date"] = published_date
             entry["file_type"] = "html"
             entry["ministry"] = ministry
