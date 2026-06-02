@@ -5,6 +5,15 @@ on:
     # 毎週月曜 午前9時（UTC）に実行
     - cron: "0 9 * * 1"
   workflow_dispatch:
+    inputs:
+      reset_gist:
+        description: "既存 Gist データをリセットして再クロール"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 jobs:
   crawl:
@@ -24,26 +33,35 @@ jobs:
       - name: 依存ライブラリをインストール
         run: pip install -r requirements.txt
 
+      - name: Playwright ブラウザをインストール
+        run: playwright install chromium --with-deps
+
       - name: クロール・タグ付け・Gist同期
         env:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
           GIST_ID: ${{ secrets.GIST_ID }}
+          RESET_GIST: ${{ github.event.inputs.reset_gist || 'false' }}
         run: |
-          python3 - <<'PYEOF'
-          import json, sys, logging
+          python3 << 'PYEOF'
+          import json, sys, logging, os
           logging.basicConfig(
               level=logging.INFO,
               format="%(asctime)s [%(levelname)s] %(message)s"
           )
 
+          reset_gist = os.environ.get("RESET_GIST", "false").lower() == "true"
+
           # ── Step 1: 既存URLを取得して重複排除に使用 ──
           existing_urls = set()
-          try:
-              from scripts.gist_sync import load_existing_urls
-              existing_urls = load_existing_urls()
-              print(f"既存URL読み込み完了: {len(existing_urls)} 件", flush=True)
-          except Exception as e:
-              print(f"既存URL読み込みエラー（空セットで継続）: {e}", flush=True)
+          if not reset_gist:
+              try:
+                  from scripts.gist_sync import load_existing_urls
+                  existing_urls = load_existing_urls()
+                  print(f"既存URL読み込み完了: {len(existing_urls)} 件", flush=True)
+              except Exception as e:
+                  print(f"既存URL読み込みエラー（空セットで継続）: {e}", flush=True)
+          else:
+              print("Gistリセットモード: 既存データを無視して全件再取得", flush=True)
 
           # ── Step 2: クロール ──
           new_entries = []
@@ -69,8 +87,18 @@ jobs:
 
           # ── Step 4: Gist同期 ──
           try:
-              from scripts.gist_sync import sync
-              success = sync(tagged_entries)
+              from scripts.gist_sync import sync, _save_gist_data
+              if reset_gist:
+                  from datetime import datetime, timezone
+                  now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+                  data = {
+                      "last_updated": now,
+                      "total_count": len(tagged_entries),
+                      "slides": tagged_entries,
+                  }
+                  success = _save_gist_data(data)
+              else:
+                  success = sync(tagged_entries)
               if success:
                   print("Gist同期完了", flush=True)
               else:
