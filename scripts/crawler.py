@@ -474,6 +474,23 @@ def _parse_ndl_records(root, ns: dict, existing_urls: set) -> list:
 
         except Exception:
             continue
+        try:
+            root = ET.fromstring(r.content)
+            ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+            for sitemap in root.findall(".//sm:sitemap/sm:loc", ns):
+                child_url = sitemap.text.strip()
+                if any(k in child_url for k in ["report", "topic", "policy"]):
+                    child_r = _get(child_url)
+                    if child_r:
+                        results.extend(_extract_from_sitemap_xml(child_r.content, existing_urls))
+                        time.sleep(0.3)
+            results.extend(_extract_from_sitemap_xml(r.content, existing_urls))
+            if results:
+                logger.info(f"サイトマップから {len(results)} 件取得")
+                break
+        except Exception as e:
+            logger.warning(f"サイトマップパースエラー: {e}")
+    return results
 
     return results
 

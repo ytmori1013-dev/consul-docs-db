@@ -1,0 +1,78 @@
+name: Crawler Diagnostics Detailed
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - run: pip install requests
+
+      - name: Inspect NDL XML structure
+        env:
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: ${{ secrets.GIST_ID }}
+        run: |
+          python3 << 'PYEOF'
+          import requests, json, os
+          import xml.etree.ElementTree as ET
+
+          GIST_TOKEN = os.environ.get("GIST_TOKEN", "")
+          GIST_ID = os.environ.get("GIST_ID", "")
+          HEADERS = {"User-Agent": "Mozilla/5.0"}
+
+          log = []
+          def L(msg):
+              print(msg, flush=True)
+              log.append(str(msg))
+
+          def save_diag():
+              if not GIST_ID or not GIST_TOKEN:
+                  return
+              h = {"Authorization": f"token {GIST_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+              p = {"files": {"diag_result.txt": {"content": "\n".join(log)}}}
+              r = requests.patch(f"https://api.github.com/gists/{GIST_ID}", headers=h, json=p, timeout=30)
+              print(f"Gist save: {r.status_code}")
+
+          L("=== NDL XML structure inspection ===")
+
+          ndl_url = "https://ndlsearch.ndl.go.jp/api/sru"
+          params = {
+              "operation": "searchRetrieve",
+              "query": 'creator="経済産業省" AND title="委託調査"',
+              "maximumRecords": 3,
+              "recordSchema": "dcndl",
+              "startRecord": 1,
+          }
+
+          try:
+              r = requests.get(ndl_url, params=params, headers=HEADERS, timeout=30)
+              L(f"HTTP {r.status_code}, size={len(r.content)}")
+
+              root = ET.fromstring(r.content)
+              ns = {"srw": "http://www.loc.gov/zing/srw/"}
+              records = root.findall(".//srw:record", ns)
+              L(f"Records: {len(records)}")
+
+              for i, rec in enumerate(records):
+                  L(f"\n--- Record {i+1} raw XML ---")
+                  L(ET.tostring(rec, encoding='unicode')[:3000])
+
+          except Exception as e:
+              L(f"ERROR: {e}")
+              import traceback
+              L(traceback.format_exc())
+
+          L("\n=== DONE ===")
+          save_diag()
+          PYEOF
