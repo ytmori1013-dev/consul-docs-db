@@ -3,3 +3,4 @@ beautifulsoup4
 python-pptx
 pdfplumber
 numpy
+playwright
