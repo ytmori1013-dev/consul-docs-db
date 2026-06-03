@@ -38,32 +38,49 @@ DC    = "http://purl.org/dc/elements/1.1/"
 DCT   = "http://purl.org/dc/terms/"
 DCNDL = "http://ndl.go.jp/dcndl/terms/"
 
-# クエリセット: (query文字列, 最大取得件数, 省庁ヒント)
-# 省庁ヒントは NDL メタデータから検出できなかった場合のフォールバック
+# クエリセット: (search_params_dict, 最大取得件数, 省庁ヒント)
+#
+# search_params_dict に使えるキー（NDL API 個別フィールドパラメータ）:
+#   q         : 全文フリーテキスト（q= パラメータ）
+#   title     : タイトル
+#   creator   : 著者・作成者（省庁名）
+#   publisher : 出版者（省庁・委員会）
+#   subject   : 件名（run 17 で q='subject="宇宙開発"' として実績あり）
+#
+# ※ q= に creator="VALUE" 形式で入れると 0 ヒットになるため、
+#   creator / publisher は必ず単独パラメータとして渡す。
+# ※ q= の subject="VALUE" 構文は NDL が解釈可能（run 17 実績）。
 QUERY_SETS = [
-    # 経済産業省
-    ('creator="経済産業省" AND title="委託調査"',  200, "経済産業省"),
-    ('creator="経済産業省" AND title="調査報告"',  200, "経済産業省"),
-    ('publisher="経済産業省" AND title="委託"',    100, "経済産業省"),
-    ('creator="経済産業省" AND title="産業"',      100, "経済産業省"),
-    # 防衛省
-    ('creator="防衛省" AND title="宇宙"',          200, "防衛省"),
-    ('creator="防衛省" AND title="委託調査"',      200, "防衛省"),
-    ('creator="防衛省" AND title="調査研究"',      100, "防衛省"),
-    ('publisher="防衛省" AND title="委託"',        100, "防衛省"),
-    # 内閣府 宇宙政策委員会
-    ('creator="内閣府" AND title="宇宙"',          200, "内閣府"),
-    ('publisher="宇宙政策委員会"',                  100, "内閣府"),
-    ('title="宇宙政策" AND creator="内閣府"',       100, "内閣府"),
-    # 宇宙一般（省庁横断・信頼できる発行元に絞る）
-    ('creator="JAXA" AND title="報告"',             100, ""),
-    ('publisher="宇宙航空研究開発機構"',               100, ""),
+    # ── 経済産業省 ─────────────────────────────────────────────
+    ({"creator": "経済産業省", "title": "委託調査"},    200, "経済産業省"),
+    ({"creator": "経済産業省", "title": "調査報告"},    200, "経済産業省"),
+    ({"q": "経済産業省 委託調査 報告書"},               200, "経済産業省"),
+    ({"q": "経済産業省 産業 調査"},                    100, "経済産業省"),
+
+    # ── 防衛省 ─────────────────────────────────────────────────
+    ({"creator": "防衛省", "title": "宇宙"},           200, "防衛省"),
+    ({"creator": "防衛省", "title": "委託調査"},       200, "防衛省"),
+    ({"q": "防衛省 宇宙 委託調査"},                    100, "防衛省"),
+
+    # ── 内閣府 宇宙政策 ────────────────────────────────────────
+    ({"creator": "内閣府", "title": "宇宙"},           200, "内閣府"),
+    ({"publisher": "宇宙政策委員会"},                   100, "内閣府"),
+    ({"q": "内閣府 宇宙政策 調査"},                    100, "内閣府"),
+
+    # ── 宇宙開発一般（run 17 実績クエリ — 最も信頼性が高い）──────
+    ({"q": 'subject="宇宙開発"'},                     300, ""),
+    ({"q": 'title="宇宙" AND title="報告書"'},         200, ""),
+    ({"subject": "宇宙開発"},                         200, ""),
+
+    # ── JAXA ───────────────────────────────────────────────────
+    ({"creator": "JAXA"},                            100, ""),
+    ({"publisher": "宇宙航空研究開発機構"},              100, ""),
 ]
 
 # ソース別クエリインデックス範囲（QUERY_SETS のインデックス）
 METI_INDICES = [0, 1, 2, 3]
-MOD_INDICES  = [4, 5, 6, 7]
-CAO_INDICES  = [8, 9, 10]
+MOD_INDICES  = [4, 5, 6]
+CAO_INDICES  = [7, 8, 9]
 
 # 取得対象拡張子
 ALLOWED_EXTS = (".pdf", ".pptx", ".ppt")
@@ -167,10 +184,15 @@ def _detect_ministry(creator: str, publisher: str, hint: str) -> str:
 # NDL API 呼び出し
 # ─────────────────────────────────────────────────────────────────
 
-def _call_ndl_api(query: str, cnt: int, idx: int = 1) -> Optional[str]:
-    """NDL OpenSearch API を呼び出して XML テキストを返す"""
+def _call_ndl_api(search_params: dict, cnt: int, idx: int = 1) -> Optional[str]:
+    """
+    NDL OpenSearch API を呼び出して XML テキストを返す。
+
+    search_params には q, title, creator, publisher, subject など
+    NDL API のパラメータをそのまま指定する（個別フィールドとして送信）。
+    """
     params = {
-        "q": query,
+        **search_params,
         "cnt": cnt,
         "idx": idx,
         "sortorder": "sort_published_date_desc",
@@ -186,7 +208,7 @@ def _call_ndl_api(query: str, cnt: int, idx: int = 1) -> Optional[str]:
         resp.encoding = resp.apparent_encoding or "utf-8"
         return resp.text
     except Exception as e:
-        logger.warning(f"NDL API エラー (q={query!r}): {e}")
+        logger.warning(f"NDL API エラー (params={search_params}): {e}")
         return None
 
 
@@ -299,10 +321,10 @@ def _run_queries(query_indices: list, existing_urls: set) -> tuple:
     total_found: int  = 0
 
     for idx in query_indices:
-        query, cnt, hint = QUERY_SETS[idx]
-        logger.info(f"NDL クエリ実行: q={query!r} cnt={cnt}")
+        search_params, cnt, hint = QUERY_SETS[idx]
+        logger.info(f"NDL クエリ実行: params={search_params} cnt={cnt}")
 
-        xml_text = _call_ndl_api(query, cnt)
+        xml_text = _call_ndl_api(search_params, cnt)
         if not xml_text:
             continue
 
@@ -322,7 +344,10 @@ def _run_queries(query_indices: list, existing_urls: set) -> tuple:
 
 def _run_general_queries(existing_urls: set) -> list:
     """省庁横断クエリを実行して結果を返す（source_counts には含めない）"""
-    general_indices = [i for i in range(len(QUERY_SETS)) if i not in METI_INDICES + MOD_INDICES + CAO_INDICES]
+    general_indices = [
+        i for i in range(len(QUERY_SETS))
+        if i not in METI_INDICES + MOD_INDICES + CAO_INDICES
+    ]
     entries, _ = _run_queries(general_indices, existing_urls)
     return entries
 
