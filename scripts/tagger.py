@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # ===== 定数 =====
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
-MAX_BATCH = 25  # tag_entries() が処理する最大件数
+MAX_BATCH = 200  # tag_entries() が処理する最大件数（1回のクロールで増える件数の上限）
 
 HEADERS = {
     "User-Agent": (
