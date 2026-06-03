@@ -2,7 +2,5 @@ requests
 beautifulsoup4
 python-pptx
 pdfplumber
-pypdf
+PyPDF2
 numpy
-playwright
-pdf2image

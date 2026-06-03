@@ -155,6 +155,12 @@ def load_existing_urls() -> set:
     return urls
 
 
+def load_total_count() -> int:
+    """既存データの総件数を返す（課題Gのサイレント死検出用）"""
+    data = _load_gist_data()
+    return data.get("total_count", 0)
+
+
 if __name__ == "__main__":
     import sys
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

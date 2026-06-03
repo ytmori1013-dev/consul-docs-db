@@ -18,7 +18,7 @@ on:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
 
     steps:
       - name: リポジトリをチェックアウト
@@ -32,12 +32,6 @@ jobs:
 
       - name: 依存ライブラリをインストール
         run: pip install -r requirements.txt
-
-      - name: Playwright ブラウザをインストール
-        run: playwright install chromium --with-deps
-
-      - name: システム依存ライブラリをインストール（サムネイル生成用）
-        run: sudo apt-get install -y libreoffice poppler-utils
 
       - name: クロール・タグ付け・Gist同期
         env:
@@ -67,63 +61,74 @@ jobs:
               print("Gistリセットモード: 既存データを無視して全件再取得", flush=True)
 
           # ── Step 2: クロール ──
-          new_entries = []
+          entries = []
+          source_counts = {"meti": 0, "mod": 0, "cao": 0}
           try:
               from scripts.crawler import crawl
-              new_entries = crawl(existing_urls)
-              print(f"クロール完了: 新規 {len(new_entries)} 件", flush=True)
+              result = crawl(existing_urls)
+              # crawler.py は (entries, source_counts) のタプルを返す
+              entries, source_counts = result
+              print(f"クロール完了: 新規 {len(entries)} 件", flush=True)
+              print(f"  内訳 — meti: {source_counts.get('meti', 0)} 件"
+                    f" / mod: {source_counts.get('mod', 0)} 件"
+                    f" / cao: {source_counts.get('cao', 0)} 件", flush=True)
           except Exception as e:
               print(f"クロールエラー: {e}", flush=True)
 
-          if not new_entries:
-              print("新規エントリーなし。処理を終了します。", flush=True)
-              sys.exit(0)
-
-          # ── Step 3: タグ付け ──
-          tagged_entries = new_entries
+          # ── Step 3: タグ付け（最大 MAX_BATCH 件を内部処理） ──
+          tagged = entries
           try:
               from scripts.tagger import tag_entries
-              tagged_entries = tag_entries(new_entries)
-              print(f"タグ付け完了: {len(tagged_entries)} 件", flush=True)
+              tagged = tag_entries(entries)
+              print(f"タグ付け完了: {len(tagged)} 件", flush=True)
           except Exception as e:
               print(f"タグ付けエラー（タグなしで保存）: {e}", flush=True)
 
           # ── Step 4: Gist同期 ──
+          sync_success = False
           try:
-              from scripts.gist_sync import sync, _save_gist_data
+              from scripts.gist_sync import sync, _save_gist_data, load_total_count
               if reset_gist:
                   from datetime import datetime, timezone
                   now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
                   data = {
                       "last_updated": now,
-                      "total_count": len(tagged_entries),
-                      "slides": tagged_entries,
+                      "total_count": len(tagged),
+                      "slides": tagged,
                   }
-                  success = _save_gist_data(data)
+                  sync_success = _save_gist_data(data)
               else:
-                  success = sync(tagged_entries)
-              if success:
+                  sync_success = sync(tagged)
+              if sync_success:
                   print("Gist同期完了", flush=True)
               else:
                   print("Gist同期に失敗しました（トークン・ID設定を確認してください）", flush=True)
           except Exception as e:
               print(f"Gist同期エラー: {e}", flush=True)
+
+          # ── Step 5: 課題G — サイレント死検出 ──
+          # 同期後に総件数が0、またはすべてのソースから0件しか取得できていない場合は
+          # ワークフローを失敗させて GitHub Actions のメール通知をトリガーする
+          try:
+              from scripts.gist_sync import load_total_count
+              total_after = load_total_count()
+          except Exception as e:
+              print(f"総件数取得エラー: {e}", flush=True)
+              total_after = -1  # 取得失敗は異常扱いしない
+
+          all_sources_zero = (
+              source_counts.get("meti", 0) == 0
+              and source_counts.get("mod", 0) == 0
+              and source_counts.get("cao", 0) == 0
+          )
+
+          if total_after == 0 or all_sources_zero:
+              print(
+                  f"[ERROR] サイレント死を検出: total_after={total_after}, "
+                  f"source_counts={source_counts}",
+                  flush=True,
+              )
+              sys.exit(1)
+
+          sys.exit(0)
           PYEOF
-
-      - name: サムネイル生成（最大20件・実ファイルURLがある場合のみ）
-        env:
-          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
-          GIST_ID: ${{ secrets.GIST_ID }}
-        run: python3 scripts/pptx_to_image.py
-
-      - name: サムネイルをコミット・プッシュ
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/thumbnails/ || true
-          if git diff --cached --quiet; then
-            echo "サムネイル変更なし。コミットをスキップ。"
-          else
-            git commit -m "chore: サムネイル自動生成 [skip ci]"
-            git push
-          fi
