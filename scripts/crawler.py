@@ -8,8 +8,7 @@ GitHub Actions IP からのアクセスが官公庁 WAF でブロックされる
 直接スクレイピングではなく NDL API（公開 API、ブロックなし）を利用する。
 
 返却形式:
-    crawl(existing_urls) -> (entries_list, source_counts)
-    source_counts = {"meti": N, "mod": N, "cao": N}
+    crawl(existing_urls) -> entries_list  (dict のリスト)
 """
 
 import hashlib
@@ -18,8 +17,8 @@ import re
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
-from typing import Optional, Tuple
-from urllib.parse import urljoin, urlparse, quote
+from typing import Optional
+from urllib.parse import urlparse
 
 import requests
 
@@ -195,7 +194,7 @@ def _parse_ndl_xml(
     xml_text: str,
     ministry_hint: str,
     existing_urls: set,
-) -> Tuple[list, int]:
+) -> tuple:
     """
     NDL OpenSearch API の RSS XML をパースしてエントリリストを返す。
 
@@ -284,7 +283,7 @@ def _parse_ndl_xml(
 # クエリ実行
 # ─────────────────────────────────────────────────────────────────
 
-def _run_queries(query_indices: list, existing_urls: set) -> Tuple[list, int]:
+def _run_queries(query_indices: list, existing_urls: set) -> tuple:
     """
     指定インデックスのクエリを実行して結果をまとめて返す。
 
@@ -326,14 +325,12 @@ def _run_general_queries(existing_urls: set) -> list:
 # メイン crawl()
 # ─────────────────────────────────────────────────────────────────
 
-def crawl(existing_urls: Optional[set] = None) -> Tuple[list, dict]:
+def crawl(existing_urls: Optional[set] = None) -> list:
     """
     NDL OpenSearch API を使って経産省・防衛省・内閣府文書を収集する。
 
     返り値:
-        (entries_list, source_counts)
-        source_counts = {"meti": N, "mod": N, "cao": N}
-        N はクエリの総ヒット件数（既存含む）。0 = ソースが死んでいる可能性。
+        新規エントリーのリスト (dict のリスト)
     """
     if existing_urls is None:
         existing_urls = set()
@@ -367,12 +364,12 @@ def crawl(existing_urls: Optional[set] = None) -> Tuple[list, dict]:
         f" MOD={source_counts['mod']},"
         f" CAO={source_counts['cao']}"
     )
-    return all_results, source_counts
+    return all_results
 
 
 if __name__ == "__main__":
     import json
 
-    entries, counts = crawl()
+    entries = crawl()
     print(json.dumps(entries[:25], ensure_ascii=False, indent=2))
-    print(f"\nソース別件数: {counts}")
+    print(f"\n合計新規件数: {len(entries)}")
