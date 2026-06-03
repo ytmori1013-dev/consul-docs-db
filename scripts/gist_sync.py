@@ -95,6 +95,7 @@ def merge_slides(existing_slides: list, new_slides: list) -> list:
     """
     既存スライドと新規スライドをidで重複排除してマージする。
     新着優先でソートし MAX_SLIDES 件に制限する（古いものから削除）。
+    PDF/PPTX 直リンクを持つエントリを優先保護し、html-only を先に削除。
     """
     merged: dict = {}
 
@@ -117,7 +118,11 @@ def merge_slides(existing_slides: list, new_slides: list) -> list:
 
     if len(result) > MAX_SLIDES:
         logger.info(f"スライド数を MAX_SLIDES={MAX_SLIDES} 件に制限しました。")
-        result = result[:MAX_SLIDES]
+        # PDF/PPTX 直リンクを持つエントリを優先保護し、html-only を先に削除
+        has_file = [s for s in result if s.get("file_type") in ("pdf", "pptx", "ppt")]
+        html_only = [s for s in result if s.get("file_type") not in ("pdf", "pptx", "ppt")]
+        combined = has_file + html_only
+        result = combined[:MAX_SLIDES]
 
     return result
 
@@ -153,6 +158,12 @@ def load_existing_urls() -> set:
     urls.discard("")
     logger.info(f"既存URL読み込み: {len(urls)} 件")
     return urls
+
+
+def load_total_count() -> int:
+    """Gistの総件数を返す"""
+    data = _load_gist_data()
+    return data.get("total_count", 0)
 
 
 if __name__ == "__main__":

@@ -55,9 +55,9 @@ QUERY_SETS = [
     ('creator="内閣府" AND title="宇宙"',          200, "内閣府"),
     ('publisher="宇宙政策委員会"',                  100, "内閣府"),
     ('title="宇宙政策" AND creator="内閣府"',       100, "内閣府"),
-    # 宇宙一般（省庁横断）
-    ('subject="宇宙開発"',                         200, ""),
-    ('title="宇宙" AND title="報告書"',             100, ""),
+    # 宇宙一般（省庁横断・信頼できる発行元に絞る）
+    ('creator="JAXA" AND title="報告"',             100, ""),
+    ('publisher="宇宙航空研究開発機構"',               100, ""),
 ]
 
 # ソース別クエリインデックス範囲（QUERY_SETS のインデックス）
@@ -253,11 +253,17 @@ def _parse_ndl_xml(
                 file_url = id_val
                 break
 
-        # URL 決定: ファイル直リンク > NDL カタログリンク
-        url = file_url or link
-        if not url:
+        # ファイル直リンクがない場合はスキップ（NDL カタログ HTML は UI でエラーになるため）
+        if not file_url:
             continue
+
+        url = file_url
         if url in existing_urls:
+            continue
+
+        # タイトル品質フィルタ: 10文字未満は小説・辞書等の可能性が高いためスキップ
+        if len(title) < 10:
+            logger.debug(f"タイトル短すぎスキップ: {title!r}")
             continue
 
         ministry = _detect_ministry(dc_creator, dc_publisher, ministry_hint)
