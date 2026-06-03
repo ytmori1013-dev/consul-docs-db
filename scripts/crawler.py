@@ -45,8 +45,6 @@ QUERY_SETS = [
     # ── 経済産業省 ─────────────────────────────────────────────
     ('creator="経済産業省" AND title="委託調査"',   200, "経済産業省"),
     ('creator="経済産業省" AND title="調査報告"',   200, "経済産業省"),
-    ('creator="経済産業省" AND title="報告書"',     200, "経済産業省"),
-    ('creator="経済産業省" AND title="調査"',       100, "経済産業省"),
 
     # ── 防衛省 ─────────────────────────────────────────────────
     ('creator="防衛省" AND title="宇宙"',           200, "防衛省"),
@@ -66,9 +64,9 @@ QUERY_SETS = [
 ]
 
 # ソース別クエリインデックス範囲
-METI_INDICES = [0, 1, 2, 3]
-MOD_INDICES  = [4, 5, 6]
-CAO_INDICES  = [7, 8, 9]
+METI_INDICES = [0, 1]
+MOD_INDICES  = [2, 3, 4]
+CAO_INDICES  = [5, 6, 7]
 
 # 取得対象拡張子（直接ファイル URL の判定用）
 ALLOWED_EXTS = (".pdf", ".pptx", ".ppt")
@@ -438,7 +436,9 @@ def crawl(existing_urls: Optional[set] = None) -> list:
     general_entries = _run_general_queries(existing_urls)
     logger.info(f"[GENERAL] 新規={len(general_entries)} 件")
 
-    all_results = meti_entries + mod_entries + cao_entries + general_entries
+    # GENERAL(宇宙系) → MOD → CAO → METI の順にすることで、
+    # gist_sync の MAX_SLIDES 制限がかかっても宇宙・防衛エントリを優先的に保持する
+    all_results = general_entries + mod_entries + cao_entries + meti_entries
 
     logger.info(
         f"クロール完了: 新規合計 {len(all_results)} 件"
