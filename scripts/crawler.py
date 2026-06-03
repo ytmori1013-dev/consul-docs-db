@@ -1,23 +1,27 @@
 """
-経産省委託調査報告書クローラー
+ConsulSlides クローラー（NDL OpenSearch API 版）
 
-取得戦略（優先順位順）：
-0. Playwright で METI JS ダッシュボードをレンダリングして PDF/PPT リンクを抽出
-1. METI サイトマップ XML から PDF/PPT リンクを直接抽出（静的 HTTP）
-2. METI の主要レポートページ群を横断スキャン（静的 HTTP）
-3. NDL（国立国会図書館）検索 API で補完（常に実行）
+国立国会図書館 OpenSearch API を使って経産省・防衛省・内閣府の
+委託調査・宇宙政策関連文書を収集する。
+
+GitHub Actions IP からのアクセスが官公庁 WAF でブロックされるため、
+直接スクレイピングではなく NDL API（公開 API、ブロックなし）を利用する。
+
+返却形式:
+    crawl(existing_urls) -> (entries_list, source_counts)
+    source_counts = {"meti": N, "mod": N, "cao": N}
 """
+
 import hashlib
 import logging
 import re
 import time
-from datetime import datetime, timezone
-from typing import Optional
-from urllib.parse import urljoin, urlparse
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+from typing import Optional, Tuple
+from urllib.parse import urljoin, urlparse, quote
 
 import requests
-from bs4 import BeautifulSoup
 
 try:
     from scripts.firms import detect_firm
@@ -27,8 +31,43 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-# 取得対象とするスライド・文書ファイルの拡張子
-ALLOWED_EXTS = (".pdf", ".ppt", ".pptx")
+# ── NDL API ─────────────────────────────────────────────────────────
+NDL_API = "https://iss.ndl.go.jp/api/opensearch"
+
+# Dublin Core 名前空間
+DC    = "http://purl.org/dc/elements/1.1/"
+DCT   = "http://purl.org/dc/terms/"
+DCNDL = "http://ndl.go.jp/dcndl/terms/"
+
+# クエリセット: (query文字列, 最大取得件数, 省庁ヒント)
+# 省庁ヒントは NDL メタデータから検出できなかった場合のフォールバック
+QUERY_SETS = [
+    # 経済産業省
+    ('creator="経済産業省" AND title="委託調査"',  200, "経済産業省"),
+    ('creator="経済産業省" AND title="調査報告"',  200, "経済産業省"),
+    ('publisher="経済産業省" AND title="委託"',    100, "経済産業省"),
+    ('creator="経済産業省" AND title="産業"',      100, "経済産業省"),
+    # 防衛省
+    ('creator="防衛省" AND title="宇宙"',          200, "防衛省"),
+    ('creator="防衛省" AND title="委託調査"',      200, "防衛省"),
+    ('creator="防衛省" AND title="調査研究"',      100, "防衛省"),
+    ('publisher="防衛省" AND title="委託"',        100, "防衛省"),
+    # 内閣府 宇宙政策委員会
+    ('creator="内閣府" AND title="宇宙"',          200, "内閣府"),
+    ('publisher="宇宙政策委員会"',                  100, "内閣府"),
+    ('title="宇宙政策" AND creator="内閣府"',       100, "内閣府"),
+    # 宇宙一般（省庁横断）
+    ('subject="宇宙開発"',                         200, ""),
+    ('title="宇宙" AND title="報告書"',             100, ""),
+]
+
+# ソース別クエリインデックス範囲（QUERY_SETS のインデックス）
+METI_INDICES = [0, 1, 2, 3]
+MOD_INDICES  = [4, 5, 6, 7]
+CAO_INDICES  = [8, 9, 10]
+
+# 取得対象拡張子
+ALLOWED_EXTS = (".pdf", ".pptx", ".ppt")
 
 HEADERS = {
     "User-Agent": (
@@ -37,66 +76,11 @@ HEADERS = {
         "Chrome/120.0.0.0 Safari/537.36"
     )
 }
-METI_BASE = "https://www.meti.go.jp"
 
-# Playwright でレンダリングする METI ページ（JS ダッシュボード）
-METI_PLAYWRIGHT_PAGES = [
-    "https://www.meti.go.jp/topic/data/e90622aj.html",
-]
 
-# 静的 HTML スキャン対象の METI ページパス
-METI_REPORT_PAGES = [
-    "/report/whitepaper/index.html",
-    "/policy/economy/keiei_innovation/sangyokinyu/houkokusyo.html",
-    "/topic/data/e90622aj.html",
-]
-
-# サイトマップ XML の候補 URL
-SITEMAP_URLS = [
-    "https://www.meti.go.jp/sitemap.xml",
-    "https://www.meti.go.jp/sitemap_index.xml",
-]
-
-# NDL 検索 API（SRU）
-NDL_SRU_URL = "https://ndlsearch.ndl.go.jp/api/sru"
-
-# ファーム名検出パターン（部分一致）
-FIRM_PATTERNS = [
-    ("McKinsey", ["McKinsey", "マッキンゼー", "マッキンゼイ"]),
-    ("BCG", ["BCG", "ボストンコンサルティング", "Boston Consulting"]),
-    ("Deloitte", ["デロイト", "Deloitte", "デロイトトーマツ", "DTT"]),
-    ("PwC", ["PwC", "プライスウォーター", "PricewaterhouseCoopers"]),
-    ("Accenture", ["アクセンチュア", "Accenture"]),
-    ("NRI", ["NRI", "野村総合研究所", "野村総研"]),
-    ("三菱UFJリサーチ", ["三菱UFJ", "MURC", "三菱UFJリサーチ"]),
-    ("KPMG", ["KPMG", "あずさ監査法人"]),
-    ("EY", ["EY", "アーンスト", "Ernst & Young", "新日本監査法人"]),
-    ("Roland Berger", ["ローランドベルガー", "Roland Berger"]),
-    ("A.T. Kearney", ["ATカーニー", "A.T. Kearney", "Kearney"]),
-    ("Bain", ["Bain", "ベイン"]),
-    ("IBM", ["IBM", "日本IBM"]),
-    ("三菱総合研究所", ["三菱総合研究所", "MRI"]),
-    ("みずほリサーチ", ["みずほリサーチ", "みずほ総合研究所", "みずほ情報総研"]),
-    ("富士通総研", ["富士通総研", "FRI"]),
-    ("日立コンサルティング", ["日立コンサルティング"]),
-    ("NTTデータ", ["NTTデータ経営研究所", "NTT DATA"]),
-    ("矢野経済研究所", ["矢野経済研究所"]),
-    ("日本総研", ["日本総研", "日本総合研究所", "JRI"]),
-    ("PwCコンサルティング", ["PwCコンサルティング"]),
-    ("Strategy&", ["Strategy&", "ストラテジー"]),
-    ("A.D. Little", ["A.D.リトル", "ADリトル", "Arthur D. Little"]),
-    ("コーポレイトディレクション", ["コーポレイトディレクション", "CDI"]),
-    ("ベリングポイント", ["ベリングポイント", "BearingPoint"]),
-    ("パシフィックコンサルタンツ", ["パシフィックコンサルタンツ"]),
-    ("大和総研", ["大和総研", "大和総合研究所"]),
-    ("農林中金総合研究所", ["農林中金総研"]),
-    ("価値総合研究所", ["価値総合研究所"]),
-    ("産業能率大学", ["産業能率大学"]),
-    ("電通総研", ["電通総研", "電通国際情報サービス"]),
-    ("シード・プランニング", ["シード・プランニング"]),
-    ("エヌ・ティ・ティ・データ経営研究所", ["NTTデータ経営研究所"]),
-]
-
+# ─────────────────────────────────────────────────────────────────
+# ユーティリティ
+# ─────────────────────────────────────────────────────────────────
 
 def _entry_id(url: str) -> str:
     return hashlib.md5(url.encode()).hexdigest()
@@ -115,551 +99,280 @@ def _extract_fiscal_year(text: str) -> str:
     return ""
 
 
-def _date_to_fiscal_year(date_str: str) -> str:
-    """YYYY-MM-DD または YYYY 形式の日付を日本の年度（元号）に変換する"""
-    if not date_str:
-        return ""
-    try:
-        s = date_str.strip()[:10]
-        if len(s) == 4:
-            year = int(s)
-            # 年のみの場合は当該年度とみなす（3月以前は前年度扱い不可 → そのまま使う）
-            fiscal = year
-        else:
-            parts = s.split("-")
-            year, month = int(parts[0]), int(parts[1])
-            # 日本の年度は4月始まり。3月以前は前年度
-            fiscal = year if month >= 4 else year - 1
-        if fiscal >= 2019:
-            return f"令和{fiscal - 2018}"
-        elif fiscal >= 1989:
-            return f"平成{fiscal - 1988}"
-        return ""
-    except Exception:
-        return ""
-
-
-def _extract_firm_name(text: str) -> str:
-    """共有モジュール firms.detect_firm に委譲（表記ゆれ正規化込み）"""
-    return detect_firm(text)
-
-
 def _get_file_type(url: str) -> str:
-    path = urlparse(url).path.lower()
+    path = urlparse(url).path.lower().split("?")[0]
     if path.endswith(".pptx"):
         return "pptx"
     if path.endswith(".ppt"):
         return "ppt"
     if path.endswith(".pdf"):
         return "pdf"
-    return "unknown"
+    return "html"
 
 
-def _make_entry(title: str, file_url: str, context_text: str = "") -> dict:
-    combined = title + " " + context_text
+def _is_file_url(url: str) -> bool:
+    path = urlparse(url).path.lower().split("?")[0]
+    return path.endswith(ALLOWED_EXTS)
+
+
+def _make_entry(
+    title: str,
+    file_url: str,
+    source_page: str,
+    ministry: str,
+    context_text: str = "",
+) -> dict:
+    combined = title + " " + context_text + " " + file_url
     return {
         "id": _entry_id(file_url),
-        "title": title.strip()[:300],
+        "title": title.strip()[:300] or file_url.split("/")[-1],
         "url": file_url,
+        "source_page": source_page,
+        "ministry": ministry,
         "file_type": _get_file_type(file_url),
-        "published_date": "",
         "fiscal_year": _extract_fiscal_year(combined),
-        "firm_name": _extract_firm_name(combined),
-        # 後段（tagger）で確定する新規フィールド。後方互換のため初期値を入れておく
-        "slide_type": "",          # "slide"（横長）/ "document"（縦長）/ ""（不明）
-        "thumbnail_urls": [],      # 生成サムネイル画像の相対パス配列
-        "highlight_slides": [],    # 注目スライドのページ番号
+        "firm_name": detect_firm(context_text) if context_text else "不明",
+        "slide_type": "",
+        "landscape_ratio": None,
+        "page_count": 0,
+        "avg_visuals": None,
+        "avg_chars": None,
+        "tags": {"structure": [], "design": [], "theme": [], "year": []},
+        "highlight_slides": [],
         "extraction_failed": False,
-        "crawled_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+        "crawled_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        # NDL メタデータ（tagger.py がテーマ判定に使用）
+        "ndl_subject": "",
+        "ndl_description": "",
+        "ndl_responsibility": "",
     }
 
 
-def _get(url: str, timeout: int = 30, retries: int = 3) -> Optional[requests.Response]:
-    """GET リクエスト。タイムアウト30秒・最大3回リトライ（指数バックオフ）。"""
-    for attempt in range(retries):
-        try:
-            r = requests.get(url, headers=HEADERS, timeout=timeout)
-            r.raise_for_status()
-            r.encoding = r.apparent_encoding or "utf-8"
-            return r
-        except Exception as e:
-            if attempt < retries - 1:
-                time.sleep(2 ** attempt)
-            else:
-                logger.warning(f"取得失敗 {url}: {e}")
-    return None
+# ─────────────────────────────────────────────────────────────────
+# 省庁検出
+# ─────────────────────────────────────────────────────────────────
+
+def _detect_ministry(creator: str, publisher: str, hint: str) -> str:
+    """NDL メタデータから省庁名を検出する"""
+    combined = (creator or "") + " " + (publisher or "")
+    if "経済産業省" in combined or "経産省" in combined:
+        return "経済産業省"
+    if "防衛省" in combined:
+        return "防衛省"
+    if "内閣府" in combined or "宇宙政策委員会" in combined:
+        return "内閣府"
+    return hint or "不明"
 
 
-def _url_exists(url: str, timeout: int = 30) -> bool:
-    """
-    ダウンロードリンクが実在するか HEAD リクエストで確認する（課題2）。
-    HEAD 非対応サーバー向けに、失敗時は GET（Range で先頭のみ）でフォールバック。
-    """
+# ─────────────────────────────────────────────────────────────────
+# NDL API 呼び出し
+# ─────────────────────────────────────────────────────────────────
+
+def _call_ndl_api(query: str, cnt: int, idx: int = 1) -> Optional[str]:
+    """NDL OpenSearch API を呼び出して XML テキストを返す"""
+    params = {
+        "q": query,
+        "cnt": cnt,
+        "idx": idx,
+        "sortorder": "sort_published_date_desc",
+    }
     try:
-        r = requests.head(url, headers=HEADERS, timeout=timeout, allow_redirects=True)
-        if r.status_code == 200:
-            return True
-        # 405/403 等で HEAD を弾くサーバーは GET で確認
-        if r.status_code in (403, 405, 501):
-            raise requests.RequestException("HEAD not allowed")
-        return False
-    except Exception:
-        try:
-            headers = {**HEADERS, "Range": "bytes=0-0"}
-            r = requests.get(url, headers=headers, timeout=timeout, stream=True, allow_redirects=True)
-            ok = r.status_code in (200, 206)
-            r.close()
-            return ok
-        except Exception:
-            return False
-
-
-# ── 戦略0: Playwright で METI JS ページをレンダリング ──────────────
-
-def _crawl_meti_playwright(existing_urls: set) -> list:
-    """
-    Playwright で JavaScript レンダリングされた METI ページから
-    PDF/PPT リンクとその周辺テキスト（ファーム名・年度）を抽出する。
-    Playwright 未インストールまたは接続エラーの場合は空リストを返す。
-    """
-    results = []
-    try:
-        from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
-    except ImportError:
-        logger.info("Playwright 未インストール。戦略0をスキップします。")
-        return results
-
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                user_agent=HEADERS["User-Agent"],
-                ignore_https_errors=True,
-            )
-            page = context.new_page()
-
-            for target_url in METI_PLAYWRIGHT_PAGES:
-                try:
-                    logger.info(f"Playwright: {target_url}")
-                    page.goto(target_url, wait_until="networkidle", timeout=30000)
-                    page.wait_for_timeout(2000)
-
-                    # 全リンクを取得
-                    links = page.query_selector_all("a[href]")
-                    for link in links:
-                        try:
-                            href = link.get_attribute("href") or ""
-                            if not href.lower().split("?")[0].endswith(ALLOWED_EXTS):
-                                continue
-                            # 相対URLを絶対URLに正規化（課題2）
-                            abs_url = urljoin(target_url, href)
-                            if abs_url in existing_urls:
-                                continue
-                            # リンク切れを除外（HEADで実在確認、課題2）
-                            if not _url_exists(abs_url):
-                                logger.info(f"リンク切れ除外: {abs_url}")
-                                continue
-
-                            link_text = (link.inner_text() or "").strip()
-                            # 親要素のテキスト（ファーム名・年度が入ることが多い）
-                            parent = link.evaluate("el => el.closest('tr,li,div,p') ? el.closest('tr,li,div,p').innerText : ''")
-                            context_text = (parent or link_text)[:500]
-
-                            title = link_text or abs_url.split("/")[-1]
-                            entry = _make_entry(title, abs_url, context_text)
-                            results.append(entry)
-                            existing_urls.add(abs_url)
-                        except Exception:
-                            continue
-
-                    logger.info(f"Playwright: {target_url} → {len(results)} 件取得")
-
-                except PWTimeout:
-                    logger.warning(f"Playwright タイムアウト: {target_url}")
-                except Exception as e:
-                    logger.warning(f"Playwright エラー ({target_url}): {e}")
-
-            browser.close()
+        resp = requests.get(
+            NDL_API,
+            params=params,
+            headers=HEADERS,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        resp.encoding = resp.apparent_encoding or "utf-8"
+        return resp.text
     except Exception as e:
-        logger.warning(f"Playwright 全体エラー: {e}")
+        logger.warning(f"NDL API エラー (q={query!r}): {e}")
+        return None
 
-    return results
 
+def _parse_ndl_xml(
+    xml_text: str,
+    ministry_hint: str,
+    existing_urls: set,
+) -> Tuple[list, int]:
+    """
+    NDL OpenSearch API の RSS XML をパースしてエントリリストを返す。
 
-# ── 戦略1: サイトマップ XML ──────────────────────────────────────
-
-def _crawl_sitemap(existing_urls: set) -> list:
-    """METI サイトマップ XML から PDF/PPT URL を直接抽出する"""
+    返り値: (新規エントリリスト, クエリの総ヒット件数)
+    """
     results = []
-    for sitemap_url in SITEMAP_URLS:
-        r = _get(sitemap_url)
-        if not r:
-            continue
-        try:
-            root = ET.fromstring(r.content)
-            ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-            for sitemap in root.findall(".//sm:sitemap/sm:loc", ns):
-                child_url = sitemap.text.strip()
-                if any(k in child_url for k in ["report", "topic", "policy"]):
-                    child_r = _get(child_url)
-                    if child_r:
-                        results.extend(_extract_from_sitemap_xml(child_r.content, existing_urls))
-                        time.sleep(0.3)
-            results.extend(_extract_from_sitemap_xml(r.content, existing_urls))
-            if results:
-                logger.info(f"サイトマップから {len(results)} 件取得")
-                break
-        except Exception as e:
-            logger.warning(f"サイトマップパースエラー: {e}")
-    return results
+    total_hits = 0
 
-
-def _extract_from_sitemap_xml(content: bytes, existing_urls: set) -> list:
-    results = []
     try:
-        root = ET.fromstring(content)
-        ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-        for loc in root.findall(".//sm:url/sm:loc", ns):
-            url = loc.text.strip()
-            if re.search(r"\.(pdf|ppt|pptx)$", url, re.I) and url not in existing_urls:
-                title = url.split("/")[-1]
-                results.append(_make_entry(title, url))
-                existing_urls.add(url)
-    except Exception:
-        pass
-    return results
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as e:
+        logger.warning(f"NDL XML パースエラー: {e}")
+        return results, 0
 
+    channel = root.find("channel")
+    if channel is None:
+        return results, 0
 
-# ── 戦略2: METI ページ横断スキャン ───────────────────────────────
-
-def _crawl_meti_pages(existing_urls: set) -> list:
-    """METI の主要ページを横断して PDF/PPT リンクを抽出する（静的 HTML）"""
-    results = []
-    visited_pages = set()
-
-    def scan_page(page_url: str, depth: int = 0):
-        if depth > 2 or page_url in visited_pages:
-            return
-        visited_pages.add(page_url)
-
-        r = _get(page_url)
-        if not r:
-            return
-
-        soup = BeautifulSoup(r.text, "html.parser")
-
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            abs_url = urljoin(METI_BASE, href)
-
-            if abs_url.lower().split("?")[0].endswith(ALLOWED_EXTS):
-                if abs_url not in existing_urls and _url_exists(abs_url):
-                    title = a.get_text(strip=True) or abs_url.split("/")[-1]
-                    parent_text = a.parent.get_text(" ", strip=True) if a.parent else ""
-                    results.append(_make_entry(title, abs_url, parent_text))
-                    existing_urls.add(abs_url)
-
-            elif (abs_url.startswith(METI_BASE)
-                  and abs_url.endswith(".html")
-                  and any(k in abs_url for k in ["/report/", "/topic/", "/policy/", "/research/"])
-                  and depth < 2):
-                time.sleep(0.2)
-                scan_page(abs_url, depth + 1)
-
-        time.sleep(0.3)
-
-    for page_path in METI_REPORT_PAGES:
-        scan_page(METI_BASE + page_path)
-        if len(results) >= 200:
-            break
-
-    logger.info(f"METI ページスキャンから {len(results)} 件取得")
-    return results
-
-
-# ── 戦略3: NDL 検索 API ──────────────────────────────────────────
-
-def _parse_ndl_records(root, ns: dict, existing_urls: set, ministry: str = "") -> list:
-    """NDL SRU レスポンスの srw:records をパースしてエントリーリストを返す"""
-    DCNDL = "http://ndl.go.jp/dcndl/terms/"
-    DCTERMS = "http://purl.org/dc/terms/"
-    DC = "http://purl.org/dc/elements/1.1/"
-    RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-    FOAF = "http://xmlns.com/foaf/0.1/"
-    results = []
-
-    for record in root.findall(".//srw:record", ns):
+    # openSearch:totalResults から総件数を取得
+    total_el = channel.find("{http://a9.com/-/spec/opensearch/1.1/}totalResults")
+    if total_el is not None and total_el.text:
         try:
-            rec_data = record.find(".//srw:recordData", ns)
-            if rec_data is None:
-                continue
+            total_hits = int(total_el.text)
+        except ValueError:
+            pass
 
-            inner_text = (rec_data.text or "").strip()
-            if not inner_text:
-                continue
-            inner = ET.fromstring(inner_text)
+    items = channel.findall("item")
+    if not items:
+        return results, total_hits
 
-            bib_admin = inner.find(f"{{{DCNDL}}}BibAdminResource")
-            if bib_admin is None:
-                continue
-            entry_url = bib_admin.get(f"{{{RDF}}}about", "")
-            if not entry_url or entry_url in existing_urls:
-                continue
+    for item in items:
+        # 基本フィールド
+        title     = item.findtext("title", "").strip()
+        link      = item.findtext("link", "").strip()
 
-            bib_res = inner.find(f"{{{DCNDL}}}BibResource")
-            title = ""
-            published_date = ""
-            creator = ""
-            publisher = ""
-            series_title = ""
-            description = ""
-            responsibility = ""
-            subjects = []
-            contributors = []
+        # Dublin Core フィールド
+        dc_creator   = item.findtext(f"{{{DC}}}creator",     "").strip()
+        dc_publisher = item.findtext(f"{{{DC}}}publisher",   "").strip()
+        dc_subject   = item.findtext(f"{{{DC}}}subject",     "").strip()
+        dc_desc      = item.findtext(f"{{{DC}}}description", "").strip()
 
-            if bib_res is not None:
-                t = bib_res.find(f"{{{DCTERMS}}}title")
-                if t is not None:
-                    title = (t.text or "").strip()
-                if not title:
-                    dc_t = bib_res.find(f"{{{DC}}}title")
-                    if dc_t is not None:
-                        rdf_v = dc_t.find(f".//{{{RDF}}}value")
-                        if rdf_v is not None:
-                            title = (rdf_v.text or "").strip()
+        # dcndl:responsibility（委託先・受託者が含まれることが多い）
+        dcndl_resp = item.findtext(f"{{{DCNDL}}}responsibility", "").strip()
 
-                d = bib_res.find(f"{{{DCTERMS}}}issued")
-                if d is not None:
-                    published_date = (d.text or "").strip()
+        # dc:identifier から直接ファイル URL を探す（複数要素）
+        identifiers = [
+            e.text.strip()
+            for e in item.findall(f"{{{DC}}}identifier")
+            if e.text and e.text.strip().startswith("http")
+        ]
 
-                # creator: dc:creator テキスト + foaf:name ネスト要素
-                creator_names = []
-                for c_el in bib_res.findall(f"{{{DC}}}creator"):
-                    if c_el.text and c_el.text.strip():
-                        creator_names.append(c_el.text.strip())
-                    for fn in c_el.findall(f".//{{{FOAF}}}name"):
-                        if fn.text and fn.text.strip():
-                            creator_names.append(fn.text.strip())
-                for c_el in bib_res.findall(f"{{{DCTERMS}}}creator"):
-                    for fn in c_el.findall(f".//{{{FOAF}}}name"):
-                        if fn.text and fn.text.strip():
-                            creator_names.append(fn.text.strip())
-                creator = " ".join(creator_names)
+        # .pdf/.pptx/.ppt URL を優先
+        file_url = ""
+        for id_val in identifiers:
+            if _is_file_url(id_val):
+                file_url = id_val
+                break
 
-                # contributor: 委託先・執筆者等が入ることがある
-                for contrib_el in bib_res.findall(f"{{{DC}}}contributor"):
-                    if contrib_el.text and contrib_el.text.strip():
-                        contributors.append(contrib_el.text.strip())
-                    for fn in contrib_el.findall(f".//{{{FOAF}}}name"):
-                        if fn.text and fn.text.strip():
-                            contributors.append(fn.text.strip())
-                for contrib_el in bib_res.findall(f"{{{DCTERMS}}}contributor"):
-                    for fn in contrib_el.findall(f".//{{{FOAF}}}name"):
-                        if fn.text and fn.text.strip():
-                            contributors.append(fn.text.strip())
-
-                # responsibility: 責任表示（タイトルページの "○○作成" 等を含む）
-                for r_el in bib_res.findall(f"{{{DCNDL}}}responsibility"):
-                    rv = r_el.find(f".//{{{RDF}}}value")
-                    rt = (rv.text if rv is not None else r_el.text) or ""
-                    if rt.strip():
-                        responsibility += rt.strip() + " "
-
-                p = bib_res.find(f"{{{DC}}}publisher")
-                if p is not None:
-                    publisher = (p.text or "").strip()
-                if not publisher:
-                    p2 = bib_res.find(f"{{{DCTERMS}}}publisher")
-                    if p2 is not None:
-                        publisher = (p2.text or "").strip()
-
-                s = bib_res.find(f"{{{DCNDL}}}seriesTitle")
-                if s is not None:
-                    rdf_v = s.find(f".//{{{RDF}}}value")
-                    if rdf_v is not None:
-                        series_title = (rdf_v.text or "").strip()
-
-                for desc_el in bib_res.findall(f"{{{DCTERMS}}}description"):
-                    description += (desc_el.text or "") + " "
-
-                for subj_el in bib_res.findall(f"{{{DCTERMS}}}subject"):
-                    sv = subj_el.find(f".//{{{RDF}}}value")
-                    subj_text = (sv.text if sv is not None else subj_el.text) or ""
-                    if subj_text.strip():
-                        subjects.append(subj_text.strip())
-                for subj_el in bib_res.findall(f"{{{DC}}}subject"):
-                    sv = subj_el.find(f".//{{{RDF}}}value")
-                    subj_text = (sv.text if sv is not None else subj_el.text) or ""
-                    if subj_text.strip():
-                        subjects.append(subj_text.strip())
-
-            context = " ".join(filter(None, [
-                responsibility, creator, " ".join(contributors),
-                publisher, series_title, description, " ".join(subjects),
-            ]))
-            entry = _make_entry(title or entry_url, entry_url, context)
-            entry["published_date"] = published_date
-            entry["file_type"] = "html"
-            entry["ministry"] = ministry
-
-            if not entry.get("fiscal_year") and published_date:
-                entry["fiscal_year"] = _date_to_fiscal_year(published_date)
-
-            results.append(entry)
-            existing_urls.add(entry_url)
-
-        except Exception:
+        # URL 決定: ファイル直リンク > NDL カタログリンク
+        url = file_url or link
+        if not url:
+            continue
+        if url in existing_urls:
             continue
 
-    return results
+        ministry = _detect_ministry(dc_creator, dc_publisher, ministry_hint)
+        context  = " ".join(filter(None, [dc_subject, dc_desc, dcndl_resp, dc_creator]))
 
+        entry = _make_entry(title, url, link or url, ministry, context)
+        # NDL メタデータをエントリに保存（tagger がテーマ・ファーム判定に利用）
+        entry["ndl_subject"]        = dc_subject
+        entry["ndl_description"]    = dc_desc
+        entry["ndl_responsibility"] = dcndl_resp
 
-def _crawl_ndl(existing_urls: set, max_records: int = 1000) -> list:
-    """
-    国立国会図書館 SRU API で経産省委託調査報告書を検索する（ページネーション対応）。
+        results.append(entry)
+        existing_urls.add(url)
 
-    recordData は HTML エンコードされた文字列として返るため、
-    テキストを再パースして rdf:about の URL とタイトルを抽出する。
-    """
-    ns = {"srw": "http://www.loc.gov/zing/srw/"}
-    results = []
-    # 複数クエリで幅広く取得
-    # METI が creator のケース
-    meti_queries = [
-        'creator="経済産業省" AND title="委託調査"',
-        'creator="経済産業省" AND title="委託事業"',
-        'creator="経済産業省" AND title="報告書"',
-        'publisher="経済産業省" AND title="委託" AND title="調査"',
-    ]
-    # コンサル会社が creator で METI 関連のケース（NDL では委託先が creator になることもある）
-    firm_queries = [
-        'creator="野村総合研究所" AND title="経済産業省"',
-        'creator="三菱UFJ" AND title="経済産業省"',
-        'creator="みずほ" AND title="経済産業省委託"',
-        'creator="アクセンチュア" AND title="経済産業省"',
-        'creator="デロイト" AND title="経済産業省"',
-        'creator="プライスウォーター" AND title="経済産業省"',
-        'creator="NRI" AND title="経済産業省委託"',
-        'creator="三菱総合研究所" AND title="経済産業省"',
-        'creator="矢野経済研究所" AND title="経済産業省"',
-        'creator="大和総研" AND title="経済産業省"',
-        'creator="日本総合研究所" AND title="経済産業省"',
-        'creator="電通総研" AND title="経済産業省"',
-        'creator="富士通総研" AND title="経済産業省"',
-    ]
-    # 防衛省関連クエリ
-    mod_queries = [
-        'creator="防衛省" AND title="調査"',
-        'creator="防衛省" AND title="委託"',
-        'creator="防衛省" AND title="研究"',
-        'publisher="防衛省" AND title="委託調査"',
-        'creator="防衛装備庁" AND title="調査"',
-    ]
-    queries = (
-        [(q, max_records, "経済産業省") for q in meti_queries]
-        + [(q, 200, "経済産業省") for q in firm_queries]
-        + [(q, 500, "防衛省") for q in mod_queries]
+    logger.debug(
+        f"パース完了: {len(results)} 件 / 総ヒット {total_hits} 件 "
+        f"(hint={ministry_hint!r})"
     )
-
-    for query, q_max, ministry in queries:
-        start = 1
-        batch = min(500, q_max)
-        while start <= q_max:
-            params = {
-                "operation": "searchRetrieve",
-                "query": query,
-                "maximumRecords": min(batch, q_max - start + 1),
-                "recordSchema": "dcndl",
-                "startRecord": start,
-            }
-            root = None
-            for attempt in range(3):
-                try:
-                    r = requests.get(NDL_SRU_URL, params=params, headers=HEADERS, timeout=60)
-                    r.raise_for_status()
-                    root = ET.fromstring(r.content)
-                    break
-                except Exception as e:
-                    if attempt < 2:
-                        wait = (attempt + 1) * 5
-                        logger.warning(f"NDL API リトライ {attempt + 1}/3 (wait {wait}s): {e}")
-                        time.sleep(wait)
-                    else:
-                        logger.warning(f"NDL API エラー (query={query}, start={start}): {e}")
-
-            if root is None:
-                break
-
-            # 総件数を取得してページネーション上限を把握
-            num_el = root.find(".//srw:numberOfRecords", ns)
-            total = int(num_el.text) if num_el is not None and num_el.text else 0
-
-            batch_results = _parse_ndl_records(root, ns, existing_urls, ministry)
-            results.extend(batch_results)
-            logger.info(f"NDL '{query}' start={start}: {len(batch_results)} 件（累計 {len(results)} 件 / 総 {total} 件）")
-
-            if len(batch_results) < batch or start + batch > min(total, q_max):
-                break
-            start += batch
-            time.sleep(1)
-
-    logger.info(f"NDL 合計: {len(results)} 件取得")
-    return results
+    return results, total_hits
 
 
-# ── メイン ───────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
+# クエリ実行
+# ─────────────────────────────────────────────────────────────────
 
-def crawl(existing_urls: Optional[set] = None) -> list:
+def _run_queries(query_indices: list, existing_urls: set) -> Tuple[list, int]:
     """
-    4段階戦略でクロールし、新規エントリーを返す。
+    指定インデックスのクエリを実行して結果をまとめて返す。
 
-    0. Playwright で METI JS ページをレンダリング（最優先）
-    1. METI サイトマップ XML
-    2. METI ページ横断スキャン
-    3. NDL 検索 API（常に実行）
+    返り値: (新規エントリリスト, 合計発見件数（重複含む・サイレント死検出用）)
+    """
+    all_entries: list = []
+    total_found: int  = 0
+
+    for idx in query_indices:
+        query, cnt, hint = QUERY_SETS[idx]
+        logger.info(f"NDL クエリ実行: q={query!r} cnt={cnt}")
+
+        xml_text = _call_ndl_api(query, cnt)
+        if not xml_text:
+            continue
+
+        entries, hits = _parse_ndl_xml(xml_text, hint, existing_urls)
+        all_entries.extend(entries)
+        total_found += hits
+
+        logger.info(f"  → 新規 {len(entries)} 件 / 総ヒット {hits} 件")
+        time.sleep(0.5)  # NDL API へのレート制限配慮
+
+    return all_entries, total_found
+
+
+# ─────────────────────────────────────────────────────────────────
+# 宇宙横断クエリ（省庁不問）
+# ─────────────────────────────────────────────────────────────────
+
+def _run_general_queries(existing_urls: set) -> list:
+    """省庁横断クエリを実行して結果を返す（source_counts には含めない）"""
+    general_indices = [i for i in range(len(QUERY_SETS)) if i not in METI_INDICES + MOD_INDICES + CAO_INDICES]
+    entries, _ = _run_queries(general_indices, existing_urls)
+    return entries
+
+
+# ─────────────────────────────────────────────────────────────────
+# メイン crawl()
+# ─────────────────────────────────────────────────────────────────
+
+def crawl(existing_urls: Optional[set] = None) -> Tuple[list, dict]:
+    """
+    NDL OpenSearch API を使って経産省・防衛省・内閣府文書を収集する。
+
+    返り値:
+        (entries_list, source_counts)
+        source_counts = {"meti": N, "mod": N, "cao": N}
+        N はクエリの総ヒット件数（既存含む）。0 = ソースが死んでいる可能性。
     """
     if existing_urls is None:
         existing_urls = set()
 
-    all_results = []
+    source_counts = {"meti": 0, "mod": 0, "cao": 0}
 
-    # 戦略0: Playwright
-    try:
-        r0 = _crawl_meti_playwright(existing_urls)
-        all_results.extend(r0)
-        logger.info(f"[戦略0 Playwright] {len(r0)} 件")
-    except Exception as e:
-        logger.error(f"戦略0 エラー: {e}")
+    # 経済産業省クエリ
+    meti_entries, meti_found = _run_queries(METI_INDICES, existing_urls)
+    source_counts["meti"] = meti_found
+    logger.info(f"[METI] 新規={len(meti_entries)} 件 / 発見={meti_found} 件")
 
-    # 戦略1
-    try:
-        r1 = _crawl_sitemap(existing_urls)
-        all_results.extend(r1)
-        logger.info(f"[戦略1 サイトマップ] {len(r1)} 件")
-    except Exception as e:
-        logger.error(f"戦略1 エラー: {e}")
+    # 防衛省クエリ
+    mod_entries, mod_found = _run_queries(MOD_INDICES, existing_urls)
+    source_counts["mod"] = mod_found
+    logger.info(f"[MOD] 新規={len(mod_entries)} 件 / 発見={mod_found} 件")
 
-    # 戦略2
-    try:
-        r2 = _crawl_meti_pages(existing_urls)
-        all_results.extend(r2)
-        logger.info(f"[戦略2 ページスキャン] {len(r2)} 件")
-    except Exception as e:
-        logger.error(f"戦略2 エラー: {e}")
+    # 内閣府クエリ
+    cao_entries, cao_found = _run_queries(CAO_INDICES, existing_urls)
+    source_counts["cao"] = cao_found
+    logger.info(f"[CAO] 新規={len(cao_entries)} 件 / 発見={cao_found} 件")
 
-    # 戦略3: NDL（常に実行）
-    try:
-        r3 = _crawl_ndl(existing_urls)
-        all_results.extend(r3)
-        logger.info(f"[戦略3 NDL API] {len(r3)} 件")
-    except Exception as e:
-        logger.error(f"戦略3 エラー: {e}")
+    # 宇宙横断クエリ（source_counts 対象外）
+    general_entries = _run_general_queries(existing_urls)
+    logger.info(f"[GENERAL] 新規={len(general_entries)} 件")
 
-    logger.info(f"クロール完了: 合計 {len(all_results)} 件（新規）")
-    return all_results
+    all_results = meti_entries + mod_entries + cao_entries + general_entries
+
+    logger.info(
+        f"クロール完了: 新規合計 {len(all_results)} 件"
+        f" / NDL ヒット METI={source_counts['meti']},"
+        f" MOD={source_counts['mod']},"
+        f" CAO={source_counts['cao']}"
+    )
+    return all_results, source_counts
 
 
 if __name__ == "__main__":
     import json
-    entries = crawl()
-    print(json.dumps(entries, ensure_ascii=False, indent=2))
+
+    entries, counts = crawl()
+    print(json.dumps(entries[:25], ensure_ascii=False, indent=2))
+    print(f"\nソース別件数: {counts}")
