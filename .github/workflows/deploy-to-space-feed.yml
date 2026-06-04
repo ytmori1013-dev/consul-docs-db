@@ -1,0 +1,32 @@
+name: Deploy to space-feed
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push all files to ytmori1013-dev/space-feed
+        env:
+          PAT: ${{ secrets.SPACE_FEED_PAT }}
+        run: |
+          git clone "https://x-access-token:${PAT}@github.com/ytmori1013-dev/space-feed.git" /tmp/space-feed
+
+          # Copy source files (overwrites existing, preserves .git)
+          rsync -av --exclude='.git' .space-feed-src/ /tmp/space-feed/
+
+          cd /tmp/space-feed
+          git config user.email "github-actions@github.com"
+          git config user.name "GitHub Actions"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to deploy"
+          else
+            git commit -m "feat: deploy Space Feed"
+            git push origin main
+            echo "Deployed to ytmori1013-dev/space-feed"
+          fi
