@@ -764,8 +764,8 @@
     <div class="sidebar-section">
       <div class="sidebar-title">資料種別</div>
       <div class="filter-chips">
-        <span class="chip on-blue" id="slideTypeSlide" data-stype="slide">横長スライドのみ</span>
-        <span class="chip" id="slideTypeAll" data-stype="">すべて表示</span>
+        <span class="chip" id="slideTypeSlide" data-stype="slide">横長スライドのみ</span>
+        <span class="chip on-blue" id="slideTypeAll" data-stype="">すべて表示</span>
       </div>
     </div>
 
@@ -867,7 +867,7 @@ const filters = {
   year: "",
   firm: "",
   ministry: "",
-  slideType: "slide",   // デフォルト: 横長スライドのみ
+  slideType: "",   // デフォルト: すべて表示（横長スライドのみはフィルターで選択可）
   bmOnly: false,
 };
 
@@ -1703,7 +1703,7 @@ document.getElementById("sidebarOverlay").addEventListener("click", (e) => {
 function clearFilters() {
   filters.text      = "";
   filters.ministry  = "";
-  filters.slideType = "slide";  // リセット後もデフォルトは横長スライドのみ
+  filters.slideType = "";  // リセット後はすべて表示
   filters.year      = "";
   filters.firm      = "";
   filters.bmOnly    = false;
@@ -1719,9 +1719,9 @@ function clearFilters() {
 
   // 省庁チップリセット
   document.querySelectorAll("#ministryChips .chip").forEach(c => c.classList.remove("on-blue"));
-  // slide_type リセット（デフォルト:横長）
-  document.getElementById("slideTypeSlide").classList.add("on-blue");
-  document.getElementById("slideTypeAll").classList.remove("on-blue");
+  // slide_type リセット（デフォルト:すべて）
+  document.getElementById("slideTypeSlide").classList.remove("on-blue");
+  document.getElementById("slideTypeAll").classList.add("on-blue");
   // タグチップリセット
   document.querySelectorAll(".chip[data-filter]").forEach(c => c.classList.remove("on-blue","on-green","on-orange"));
 

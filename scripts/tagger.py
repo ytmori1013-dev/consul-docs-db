@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # ===== 定数 =====
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
-MAX_BATCH = 25  # tag_entries() が処理する最大件数
+MAX_BATCH = 2000  # tag_entries() が処理する最大件数
 
 HEADERS = {
     "User-Agent": (
@@ -118,7 +118,7 @@ def extract_from_pdf(file_path: str) -> dict:
       - slide_count: 総ページ数
       - landscape_ratio: 横長ページの割合
       - slide_type: "slide" (landscape_ratio>=0.7) / "document"
-      - avg_visuals: (img+rect+line) の1ページ平均
+      - avg_visuals: (img+大きな矩形) の1ページ平均
       - avg_chars: 文字数の1ページ平均
       - full_text: 全ページ結合テキスト
       - per_slide: [{page, visual_count, title}, ...]
@@ -156,10 +156,14 @@ def extract_from_pdf(file_path: str) -> dict:
                     landscape_pages += 1
 
                 # ビジュアル要素数の集計
-                img_count  = len(page.images) if hasattr(page, "images") else 0
-                rect_count = len(page.rects)  if hasattr(page, "rects")  else 0
-                line_count = len(page.lines)  if hasattr(page, "lines")  else 0
-                visual_count = img_count + rect_count + line_count
+                # page.rects は表のセル枠線も含むため面積フィルタをかける
+                # (幅×高さ > 2000pt² ≒ 45×45pt 以上のみ「図形」として計上)
+                img_count = len(page.images) if hasattr(page, "images") else 0
+                large_rects = sum(
+                    1 for r in (page.rects if hasattr(page, "rects") else [])
+                    if (r.get("width", 0) * r.get("height", 0)) > 2000
+                )
+                visual_count = img_count + large_rects
 
                 # テキスト抽出
                 text = page.extract_text() or ""
@@ -320,25 +324,27 @@ def detect_design_tags(avg_visuals: Optional[float], avg_chars: Optional[float])
     tags = []
 
     # 主タグ（3択・必ず1つ）
-    if avg_visuals >= 8 and avg_chars < 250:
+    # avg_visuals: 画像 + 大きな矩形の1スライド平均（表枠線は除外済み）
+    # avg_chars: 文字数の1スライド平均
+    if avg_visuals >= 3 and avg_chars < 150:
         tags.append("図解中心")
-    elif avg_chars >= 400:
+    elif avg_chars >= 250:
         tags.append("テキスト重視")
     else:
         tags.append("図表バランス型")
 
     # ビジュアル密度（必須）
-    if avg_visuals >= 12:
+    if avg_visuals >= 4:
         tags.append("ビジュアル密度：高")
-    elif avg_visuals >= 6:
+    elif avg_visuals >= 2:
         tags.append("ビジュアル密度：中")
     else:
         tags.append("ビジュアル密度：低")
 
     # 情報密度（必須）
-    if avg_chars >= 400:
+    if avg_chars >= 300:
         tags.append("情報密度：高")
-    elif avg_chars >= 200:
+    elif avg_chars >= 100:
         tags.append("情報密度：中")
     else:
         tags.append("情報密度：低")
@@ -409,7 +415,7 @@ def tag_entry(entry: dict) -> dict:
 
     - PDF: pdfplumber で横長判定・ビジュアル密度を集計
     - PPT/PPTX: python-pptx で図形数・テキスト量を集計
-    - html/unknown: タイトル・年度のみでテーマ・年度タグを付与（DLせず）
+    - html/unknown: タイトル・NDL メタデータでテーマ・年度タグを付与（DLせず）
     - 抽出失敗時もタイトルで必ずテーマタグを付与して返す
     """
     url         = entry.get("url", "")
@@ -428,6 +434,17 @@ def tag_entry(entry: dict) -> dict:
     extraction_failed = entry.get("extraction_failed", False)
     full_text       = title  # 最低限タイトルは含める
     file_path       = None
+
+    # html/unknown エントリ: NDL メタデータをテキスト判定に活用
+    if file_type in ("html", "unknown"):
+        ndl_meta = " ".join(filter(None, [
+            entry.get("ndl_subject", ""),
+            entry.get("ndl_description", ""),
+            entry.get("ndl_responsibility", ""),
+        ]))
+        full_text = title + " " + ndl_meta
+        if firm_name == "不明" and ndl_meta:
+            firm_name = detect_firm(ndl_meta)
 
     try:
         if file_type in ("pdf", "ppt", "pptx"):
